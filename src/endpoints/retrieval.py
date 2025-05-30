@@ -71,8 +71,8 @@ async def get_miner_responses(miner_hotkey: str, max_rows: int = 100):
 router = APIRouter()
 
 routes = [
-    ("/challenge-responses", get_challenge_responses),
-    ("/miner-responses", get_miner_responses),
+    ("/codegen-challenges", get_challenge_responses),
+    ("/codegen-responses", get_miner_responses),
 ]
 
 for path, endpoint in routes:
