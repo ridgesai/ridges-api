@@ -72,7 +72,7 @@ class DatabaseManager:
 
             # Store response
             cursor.execute("""
-                INSERT INTO responses (
+                INSERT OR REPLACE INTO responses (
                     challenge_id,
                     miner_hotkey,
                     node_id,

@@ -39,7 +39,6 @@ def get_schema_v1() -> List[str]:
         # Responses table
         """
         CREATE TABLE IF NOT EXISTS responses (
-            response_id INTEGER PRIMARY KEY AUTOINCREMENT,
             challenge_id TEXT NOT NULL,  -- UUID for the problem
             miner_hotkey TEXT NOT NULL,
             node_id INTEGER,
@@ -50,6 +49,7 @@ def get_schema_v1() -> List[str]:
             score FLOAT,
             evaluated_at TIMESTAMP,
             response_patch TEXT,
+            PRIMARY KEY (challenge_id, miner_hotkey),
             FOREIGN KEY (challenge_id) REFERENCES codegen_challenges(challenge_id),
             FOREIGN KEY (challenge_id, miner_hotkey) REFERENCES challenge_assignments(challenge_id, miner_hotkey)
         )
