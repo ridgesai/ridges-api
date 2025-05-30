@@ -7,6 +7,7 @@ import logging
 
 from src.models.codegen_challenges import CodegenChallenge
 from src.models.codegen_response import CodegenResponse
+from src.models.miner_responses import MinerResponses
 from .schema import check_db_initialized, init_db
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,7 @@ class DatabaseManager:
                 SELECT *
                 FROM responses
                 WHERE challenge_id = ?
+                AND evaluated = 1
             """, (challenge_id,))
             rows = cursor.fetchall()
 
@@ -150,7 +152,23 @@ class DatabaseManager:
                 return [CodegenResponse(**dict(row)) for row in rows]
             else:
                 return []
+            
+    def get_miner_responses(self, miner_hotkey: str, max_rows: int = 100) -> List[CodegenResponse]:
+        conn = self.get_connection()
+        with conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT *
+                FROM responses
+                WHERE miner_hotkey = ?
+            """, (miner_hotkey,))
+            rows = cursor.fetchall()
 
+            if rows:
+                return [CodegenResponse(**dict(row)) for row in rows]
+            else:
+                return []
 
     def get_all_table_entries(
         self, 
