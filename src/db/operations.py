@@ -145,7 +145,8 @@ class DatabaseManager:
                 FROM responses
                 WHERE challenge_id = ?
                 AND evaluated = 1
-            """, (challenge_id,))
+                LIMIT ?
+            """, (challenge_id, max_rows))
             rows = cursor.fetchall()
 
             if rows:
@@ -162,7 +163,9 @@ class DatabaseManager:
                 SELECT *
                 FROM responses
                 WHERE miner_hotkey = ?
-            """, (miner_hotkey,))
+                AND evaluated = 1
+                LIMIT ?
+            """, (miner_hotkey, max_rows))
             rows = cursor.fetchall()
 
             if rows:
