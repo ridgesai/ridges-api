@@ -1,13 +1,12 @@
 import json
 import sqlite3
-from typing import List, Optional, Tuple, Dict, Any
-from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
+from datetime import timedelta
 from pathlib import Path
 import logging
 
 from src.models.codegen_challenges import CodegenChallenge
 from src.models.codegen_response import CodegenResponse
-from src.models.miner_responses import MinerResponses
 from .schema import check_db_initialized, init_db
 
 logger = logging.getLogger(__name__)
