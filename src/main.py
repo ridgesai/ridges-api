@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 
-from src.endpoints import ingestion
+from src.endpoints.ingestion import router
 
 app = FastAPI()
 
 # Include ingestion routes
 app.include_router(
-    ingestion,
-    prefix="ingestion",
+    router,
+    prefix="/ingestion",
 )

@@ -18,7 +18,9 @@ async def codegen_challenges(data: List[Dict[str, Any]]):
 
     try:
         for item in data:
+            
             challenges_to_record.append(CodegenChallenge(**item))
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid request body format: {str(e)}")
     
