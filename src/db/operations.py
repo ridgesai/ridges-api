@@ -42,9 +42,10 @@ class DatabaseManager:
                     challenge_id, created_at, problem_statement, dynamic_checklist,
                     repository_name, commit_hash, context_file_paths
                 )
-                VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 challenge.challenge_id,
+                challenge.created_at,
                 challenge.problem_statement,
                 json.dumps(challenge.dynamic_checklist),
                 challenge.repository_name,
@@ -123,116 +124,33 @@ class DatabaseManager:
             if row:
                 return CodegenChallenge(
                     challenge_id=row["challenge_id"],
+                    created_at=row["created_at"],
                     problem_statement=row["problem_statement"],
                     dynamic_checklist=json.loads(row["dynamic_checklist"]),
                     repository_name=row["repository_name"],
                     commit_hash=row["commit_hash"],
                     context_file_paths=json.loads(row["context_file_paths"]),
-                    prompt="",
-                    model="",
                 )
             return None
         
-    def cleanup_old_data(self, days: int = 7) -> None:
-        """
-        Remove data older than the specified number of days from various tables.
-
-        Args:
-            days: Number of days to keep data for. Default is 7.
-        """
+    def get_responses(self, challenge_id: str, max_rows: int) -> List[CodegenResponse]:
+        "Get a list of responses for a given challenge"
         conn = self.get_connection()
-        cursor = conn.cursor()
-
-        try:
-            # Define tables and their timestamp columns
-            tables_to_clean = [
-                ("responses", "received_at"),
-                ("challenge_assignments", "completed_at"),
-            ]
-
-            for table, timestamp_column in tables_to_clean:
-                query = f"""
-                DELETE FROM {table}
-                WHERE {timestamp_column} < datetime('now', '-{days} days')
-                """
-                cursor.execute(query)
-                deleted_rows = cursor.rowcount
-                logger.info(f"Deleted {deleted_rows} rows from {table} older than {days} days")
-
-            # Clean up challenges that are no longer referenced
+        with conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
             cursor.execute("""
-                DELETE FROM challenges
-                WHERE challenge_id NOT IN (
-                    SELECT DISTINCT challenge_id FROM responses
-                    UNION
-                    SELECT DISTINCT challenge_id FROM challenge_assignments
-                )
-                AND created_at < datetime('now', '-{days} days')
-            """)
-            deleted_challenges = cursor.rowcount
-            logger.info(f"Deleted {deleted_challenges} orphaned challenges older than {days} days")
-
-            conn.commit()
-            logger.info(f"Database cleanup completed for data older than {days} days")
-
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Error during database cleanup: {str(e)}")
-        finally:
-            cursor.close()
-            conn.close()
-
-    def get_global_miner_scores(self, hours: int = 24) -> Tuple[float, int]:
-        """Gets the average score for all miners and average number of responses for each miner over the last n hours"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        try:
-            cursor.execute("""
-                SELECT 
-                    AVG(score) as global_avg_score,
-                    COUNT(*) / COUNT(DISTINCT miner_hotkey) as avg_responses_per_miner
-                FROM responses 
-                WHERE evaluated = TRUE 
-                AND evaluated_at > datetime('now',  '-' || ? || ' hours')
-            """, (hours,))
-
-            global_average, average_count = cursor.fetchone()
-
-            return global_average, average_count
-
-        finally:
-            cursor.close()
-            conn.close()
-        
-    def get_bayesian_miner_score(
-        self,
-        global_average: float,
-        average_count: int,
-        hours: int = 24
-    ): 
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        try:
-            cursor.execute("""
-                SELECT 
-                    miner_hotkey,
-                    COUNT(*) as response_count,
-                    AVG(score) as avg_score,
-                    (COUNT(*) * AVG(score) + ? * ?) / (COUNT(*) + ?) as bayesian_avg
+                SELECT *
                 FROM responses
-                WHERE evaluated = TRUE 
-                AND evaluated_at > datetime('now', '-' || ? || ' hours')
-                GROUP BY miner_hotkey       
-            """, (average_count, global_average, average_count, hours,))
+                WHERE challenge_id = ?
+            """, (challenge_id,))
+            rows = cursor.fetchall()
 
-            results = cursor.fetchall()
+            if rows:
+                return [CodegenResponse(**dict(row)) for row in rows]
+            else:
+                return []
 
-            return results
-        finally:
-            cursor.close()
-            conn.close()
 
     def get_all_table_entries(
         self, 

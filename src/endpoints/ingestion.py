@@ -7,7 +7,7 @@ import json
 from src.utils.auth import verify_request
 from src.models import CodegenResponse, CodegenChallenge
 
-from src.utils.db.operations import DatabaseManager
+from src.db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
