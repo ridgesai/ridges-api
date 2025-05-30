@@ -3,12 +3,13 @@ import sqlite3
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, timedelta
 from pathlib import Path
-from logging import get_logger
+import logging
 
-from .challenge_types import GeneratedCodegenProblem, CodegenResponse
+from src.models.codegen_challenges import CodegenChallenge
+from src.models.codegen_response import CodegenResponse
 from .schema import check_db_initialized, init_db
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     def __init__(self, db_path: Path) -> None:
@@ -30,7 +31,7 @@ class DatabaseManager:
     def get_connection(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
 
-    def store_codegen_challenge(self, challenge: GeneratedCodegenProblem) -> None:
+    def store_codegen_challenge(self, challenge: CodegenChallenge) -> None:
         """Store a new challenge in the database"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -62,21 +63,12 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    def store_response(
-        self,
-        challenge_id: str,
-        miner_hotkey: str,
-        response: CodegenResponse,
-        node_id: int,
-        received_at: Optional[datetime] = None,
-        completed_at: Optional[datetime] = None
-    ) -> int:
+    def store_response(self, response: CodegenResponse) -> int:
         """Store a miner's response to a challenge"""
         conn = self.get_connection()
         cursor = conn.cursor()
 
         try:
-            now = datetime.now(datetime.UTC)
 
             # Store response
             cursor.execute("""
@@ -91,27 +83,20 @@ class DatabaseManager:
                     score,
                     evaluated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                challenge_id,
-                miner_hotkey,
-                node_id,
+                response.challenge_id,
+                response.miner_hotkey,
+                response.node_id,
                 response.response_patch,
-                received_at,
-                completed_at,
+                response.received_at,
+                response.completed_at,
                 response.evaluated,
-                response.score
+                response.score,
+                response.evaluated_at
             ))
 
             response_id = cursor.lastrowid
-
-            # Mark challenge as completed in challenge_assignments
-            cursor.execute("""
-                UPDATE challenge_assignments
-                SET status = 'completed',
-                    completed_at = ?
-                WHERE challenge_id = ? AND miner_hotkey = ?
-            """, (now, challenge_id, miner_hotkey))
 
             conn.commit()
             return response_id
@@ -119,7 +104,7 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    def get_challenge(self, challenge_id: str) -> Optional[GeneratedCodegenProblem]:
+    def get_challenge(self, challenge_id: str) -> Optional[CodegenChallenge]:
         """Get a challenge from the database by ID"""
         conn = self.get_connection()
         with conn:
@@ -136,7 +121,7 @@ class DatabaseManager:
             row = cursor.fetchone()
 
             if row:
-                return GeneratedCodegenProblem(
+                return CodegenChallenge(
                     challenge_id=row["challenge_id"],
                     problem_statement=row["problem_statement"],
                     dynamic_checklist=json.loads(row["dynamic_checklist"]),
@@ -163,7 +148,6 @@ class DatabaseManager:
             tables_to_clean = [
                 ("responses", "received_at"),
                 ("challenge_assignments", "completed_at"),
-                ("availability_checks", "checked_at")
             ]
 
             for table, timestamp_column in tables_to_clean:
