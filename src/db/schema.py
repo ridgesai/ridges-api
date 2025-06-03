@@ -7,6 +7,16 @@ SCHEMA_VERSION = 1
 def get_schema_v1() -> List[str]:
     """Database schema for version 1"""
     return [
+        # Challenges table
+        """
+        CREATE TABLE IF NOT EXISTS challenges (
+            challenge_id TEXT PRIMARY KEY,  -- UUID for the challenge
+            created_at TIMESTAMP NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('codegen', 'regression')),
+            validator_hotkey TEXT NOT NULL,
+        )
+        """,
+
         # Codegen challenges table
         """
         CREATE TABLE IF NOT EXISTS codegen_challenges (
@@ -14,25 +24,10 @@ def get_schema_v1() -> List[str]:
             created_at TIMESTAMP NOT NULL,
             problem_statement TEXT NOT NULL,
             dynamic_checklist TEXT NOT NULL,  -- Stored as JSON array
-            repository_name TEXT NOT NULL,
+            repository_url TEXT NOT NULL,
             commit_hash TEXT,
-            context_file_paths TEXT NOT NULL -- JSON array of file paths relative to repo root
-        )
-        """,
-
-        # Challenge assignments table
-        """
-        CREATE TABLE IF NOT EXISTS challenge_assignments (
-            assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            challenge_id TEXT NOT NULL,  -- UUID for the problem
-            miner_hotkey TEXT NOT NULL,
-            node_id INTEGER NOT NULL,
-            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            sent_at TIMESTAMP,
-            completed_at TIMESTAMP,
-            status TEXT CHECK(status IN ('assigned', 'sent', 'completed', 'failed')) DEFAULT 'assigned',
-            FOREIGN KEY (challenge_id) REFERENCES codegen_challenges(challenge_id),
-            UNIQUE(challenge_id, miner_hotkey)
+            context_file_paths TEXT NOT NULL, -- JSON array of file paths relative to repo root
+            FOREIGN KEY (challenge_id) REFERENCES challenges(challenge_id)
         )
         """,
 
@@ -40,6 +35,7 @@ def get_schema_v1() -> List[str]:
         """
         CREATE TABLE IF NOT EXISTS responses (
             challenge_id TEXT NOT NULL,  -- UUID for the problem
+            agent_id TEXT NOT NULL,
             miner_hotkey TEXT NOT NULL,
             node_id INTEGER,
             processing_time FLOAT,
@@ -49,39 +45,24 @@ def get_schema_v1() -> List[str]:
             score FLOAT,
             evaluated_at TIMESTAMP,
             response_patch TEXT,
-            PRIMARY KEY (challenge_id, miner_hotkey),
-            FOREIGN KEY (challenge_id) REFERENCES codegen_challenges(challenge_id),
-            FOREIGN KEY (challenge_id, miner_hotkey) REFERENCES challenge_assignments(challenge_id, miner_hotkey)
+            PRIMARY KEY (challenge_id, agent_id),
+            FOREIGN KEY (challenge_id) REFERENCES challenges(challenge_id),
+            FOREIGN KEY (agent_id) REFERENCES agents(agent_id)
         )
         """,
 
-        # Availability checks table
+        # Agents table
         """
-        CREATE TABLE IF NOT EXISTS availability_checks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            node_id INTEGER NOT NULL,
-            hotkey TEXT NOT NULL,
-            checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_available BOOLEAN NOT NULL,
-            response_time_ms FLOAT NOT NULL,
-            error TEXT
+        CREATE TABLE IF NOT EXISTS agents (
+            agent_id TEXT PRIMARY KEY,
+            miner_hotkey TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('codegen', 'regression')),
+            version INTEGER NOT NULL,
+            elo INTEGER NOT NULL,
+            num_responses INTEGER NOT NULL,
         )
         """,
-
-        # Error Log Drain
-        """
-            CREATE TABLE IF NOT EXISTS error_logs (
-                id TEXT PRIMARY KEY,
-                timestamp TEXT,
-                filename TEXT,
-                pathname TEXT,
-                funcName TEXT,
-                lineno INTEGER,
-                message TEXT,
-                active_coroutines TEXT,
-                eval_loop_num INTEGER
-            )
-        """
     ]
 
 def check_db_initialized(db_path: str) -> bool:
@@ -99,10 +80,10 @@ def check_db_initialized(db_path: str) -> bool:
         
         # Required tables
         required_tables = {
+            'challenges',
             'codegen_challenges',
-            'challenge_assignments',
             'responses',
-            'availability_checks',
+            'agents',
         }
         
         # Check if all required tables exist
