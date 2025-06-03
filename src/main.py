@@ -1,18 +1,18 @@
 from fastapi import FastAPI
 
-from src.endpoints.ingestion import router as ingestion_router
-# from src.endpoints.retrieval import router as retrieval_router
+from endpoints.validator import router as validator_router
+from endpoints.miner import router as miner_router
 
 app = FastAPI()
 
 # Include ingestion routes
 app.include_router(
-    ingestion_router,
+    validator_router,
     prefix="/validator",
 )
 
-# # Include retrieval routes
-# app.include_router(
-#     retrieval_router,
-#     prefix="/retrieval",
-# )
+# Include retrieval routes
+app.include_router(
+    miner_router,
+    prefix="/miner",
+)
