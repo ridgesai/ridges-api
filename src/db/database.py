@@ -39,6 +39,7 @@ class CodegenChallenge(Base):
     __tablename__ = "codegen_challenge_table"
 
     challenge_id: Mapped[str] = mapped_column(String, ForeignKey("challenge_table.challenge_id"), primary_key=True)
+    validator_hotkey: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
     problem_statement: Mapped[str] = mapped_column(String, nullable=False)
     dynamic_checklist: Mapped[str] = mapped_column(String, nullable=False)

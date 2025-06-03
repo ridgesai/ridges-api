@@ -3,6 +3,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Request, HTTPException
 import logging
 import json
+import sqlite3
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from src.utils.auth import verify_request
 from models.pydantic_models import ChallengeCreate, CodegenChallengeCreate, AgentCreate, ResponseCreate, ChallengeRead, CodegenChallengeRead, AgentRead, ResponseRead
@@ -26,16 +28,23 @@ async def upload_codegen_challenge(codegenChallengeRequest: CodegenChallengeCrea
     try:
         codegenChallenge = CodegenChallenge(**codegenChallengeRequest.model_dump())
         db.add_codegen_challenge(codegenChallenge)
+        
         baseChallenge = Challenge(
-            challenge_id=codegenChallenge.challenge_id, 
-            created_at=codegenChallenge.created_at, 
+            challenge_id=codegenChallengeRequest.challenge_id, 
+            created_at=codegenChallengeRequest.created_at, 
             type="codegen", 
-            validator_hotkey=codegenChallenge.validator_hotkey
+            validator_hotkey=codegenChallengeRequest.validator_hotkey
         )
         db.add_challenge(baseChallenge)
+    except IntegrityError as e:
+        logger.error(f"Error uploading challenge - database integrity error: {str(e)}")
+        raise HTTPException(status_code=409, detail=f"Challenge already exists or violates constraints.")
+    except SQLAlchemyError as e:
+        logger.error(f"Error uploading challenge - database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
     except Exception as e:
         logger.error(f"Error uploading challenge: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Invalid request body format: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid request body format.")
     
     return {
         "status": "success",
