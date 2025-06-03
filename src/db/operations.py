@@ -20,5 +20,10 @@ class DatabaseManager:
 
     def add_agent(self, agent: Agent):
         with Session(self.engine) as session:
-            session.add(agent)
+            session.merge(agent)
             session.commit()
+
+    def get_agent(self, agent_id: str) -> Agent:
+        with Session(self.engine) as session:
+            return session.query(Agent).filter(Agent.agent_id == agent_id).first()
+

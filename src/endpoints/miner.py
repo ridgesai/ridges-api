@@ -8,6 +8,7 @@ from botocore.exceptions import ClientError
 import subprocess
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 from src.utils.config import AGENT_TYPES
 from src.utils.auth import verify_request
@@ -24,7 +25,8 @@ router = APIRouter()
 async def upload_agent(
     zip_file: UploadFile = File(...),
     miner_hotkey: str = None,
-    type: str = None
+    type: str = None,
+    agent_id: Optional[str] = None
 ):
     # Check if file is a zip file
     if not zip_file.filename.endswith('.zip'):
@@ -45,9 +47,18 @@ async def upload_agent(
             detail=f"type is required and must be one of {AGENT_TYPES}"
         )
     
+    # If agent_id is provided, get the agent from the database
+    if agent_id:
+        agent = db.get_agent(agent_id)
+        if not agent:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Agent {agent_id} not found"
+            )
+    
     # Create a temporary directory for unzipping
-    agent_id = uuid.uuid4()
-    temp_dir = Path(f"agent_{agent_id}")
+    new_agent_id = uuid.uuid4() if not agent_id else agent_id
+    temp_dir = Path(f"agent_{new_agent_id}")
     temp_dir.mkdir(exist_ok=True)
     
     try:
@@ -86,28 +97,39 @@ async def upload_agent(
         
         # Store in S3 with CLI
         subprocess.run(
-            ['aws', 's3', 'sync', str(temp_dir), f's3://ridges-agents/{agent_id}'],
+            ['aws', 's3', 'sync', str(temp_dir), f's3://ridges-agents/{new_agent_id}'],
             capture_output=True,
             text=True,
             check=True
         )
 
+        if agent_id:
+            agent = db.get_agent(agent_id)
+            created_at = agent.created_at
+            version = agent.version + 1
+            elo = agent.elo
+            num_responses = agent.num_responses
+        else:
+            created_at = datetime.now()
+            version = 1
+            elo = 500
+            num_responses = 0
+
         # Store in database
         agent = Agent(
-            agent_id=str(agent_id),
+            agent_id=str(new_agent_id),
             miner_hotkey=miner_hotkey,
-            created_at=datetime.now(),
+            created_at=created_at,
             type=type,
-            version=1,
-            elo=500,
-            num_responses=0
+            version=version,
+            elo=elo,
+            num_responses=num_responses
         )
         db.add_agent(agent)
         
         return {
             "status": "success",
-            "message": "Agent stored successfully",
-            "agent_id": str(agent_id)
+            "message": f"Agent {str(new_agent_id)} stored successfully",
         }
         
     except zipfile.BadZipFile:
