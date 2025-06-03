@@ -17,3 +17,8 @@ class DatabaseManager:
         with Session(self.engine) as session:
             session.add(challenge)
             session.commit()
+
+    def add_agent(self, agent: Agent):
+        with Session(self.engine) as session:
+            session.add(agent)
+            session.commit()

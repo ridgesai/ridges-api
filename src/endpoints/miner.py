@@ -7,10 +7,13 @@ import uuid
 from botocore.exceptions import ClientError
 import subprocess
 from pathlib import Path
+from datetime import datetime
 
+from src.utils.config import AGENT_TYPES
 from src.utils.auth import verify_request
-from db.operations import DatabaseManager
 
+from db.schema import Agent
+from db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +21,28 @@ db = DatabaseManager(Path("platform.db"))
 
 router = APIRouter()
 
-async def upload_agent(zip_file: UploadFile = File(...)):
+async def upload_agent(
+    zip_file: UploadFile = File(...),
+    miner_hotkey: str = None,
+    type: str = None
+):
     # Check if file is a zip file
     if not zip_file.filename.endswith('.zip'):
         raise HTTPException(
             status_code=400,
             detail="File must be a zip file"
+        )
+    
+    # Validate required parameters
+    if not miner_hotkey:
+        raise HTTPException(
+            status_code=400,
+            detail="miner_hotkey is required"
+        )
+    if not type or type not in AGENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"type is required and must be one of {AGENT_TYPES}"
         )
     
     # Create a temporary directory for unzipping
@@ -72,10 +91,23 @@ async def upload_agent(zip_file: UploadFile = File(...)):
             text=True,
             check=True
         )
+
+        # Store in database
+        agent = Agent(
+            agent_id=str(agent_id),
+            miner_hotkey=miner_hotkey,
+            created_at=datetime.now(),
+            type=type,
+            version=1,
+            elo=500,
+            num_responses=0
+        )
+        db.add_agent(agent)
         
         return {
             "status": "success",
             "message": "Agent stored successfully",
+            "agent_id": str(agent_id)
         }
         
     except zipfile.BadZipFile:

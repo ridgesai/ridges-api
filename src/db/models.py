@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, validator, field_validator
+from src.utils.config import AGENT_TYPES
 
 # Base models for shared attributes
 class ChallengeBase(BaseModel):
@@ -31,6 +32,13 @@ class AgentBase(BaseModel):
     version: int
     elo: int
     num_responses: int
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v):
+        if v not in AGENT_TYPES:
+            raise ValueError(f"Invalid agent type: {v}. Must be one of {AGENT_TYPES}")
+        return v
 
     model_config = ConfigDict(from_attributes=True)
 
