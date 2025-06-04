@@ -10,8 +10,8 @@ import shutil
 from src.utils.auth import verify_request
 from src.utils.config import S3_BUCKET_NAME, PROBLEM_TYPES
 
-from db.models import CodegenChallengeCreate
-from db.schema import Challenge, CodegenChallenge
+from db.models import CodegenChallengeCreate, CodegenResponseCreate, RegressionResponseCreate
+from db.schema import Challenge, CodegenChallenge, CodegenResponse, RegressionResponse
 from db.operations import DatabaseManager
 
 
@@ -33,7 +33,7 @@ async def post_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate
         db.add_challenge(challenge)
     except IntegrityError as e:
         logger.error(f"Error uploading challenge - database integrity error: {str(e)}")
-        raise HTTPException(status_code=409, detail=f"Challenge already exists or violates constraints.")
+        raise HTTPException(status_code=409, detail=f"Challenge already exists.")
     except SQLAlchemyError as e:
         logger.error(f"Error uploading challenge - database error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
@@ -45,6 +45,34 @@ async def post_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate
         "status": "success",
         "message": "Challenge uploaded successfully",
     }
+
+async def post_codegen_response(codegenResponsePayload: CodegenResponseCreate):
+    try:
+        codegen_response = CodegenResponse(**codegenResponsePayload.model_dump())
+        db.add_codegen_response(codegen_response)
+    except IntegrityError as e:
+        logger.error(f"Error uploading response - database integrity error: {str(e)}")
+        raise HTTPException(status_code=409, detail=f"Response already exists.")
+    except SQLAlchemyError as e:
+        logger.error(f"Error uploading response - database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
+    except Exception as e:
+        logger.error(f"Error uploading response: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid request body format.")
+    
+async def post_regression_response(regressionResponsePayload: RegressionResponseCreate):
+    try:
+        regression_response = RegressionResponse(**regressionResponsePayload.model_dump())
+        db.add_regression_response(regression_response)
+    except IntegrityError as e:
+        logger.error(f"Error uploading response - database integrity error: {str(e)}")
+        raise HTTPException(status_code=409, detail=f"Response already exists.")
+    except SQLAlchemyError as e:
+        logger.error(f"Error uploading response - database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
+    except Exception as e:
+        logger.error(f"Error uploading response: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid request body format.")
 
 async def get_agents(type: str = None):
     if type and type not in PROBLEM_TYPES:
@@ -111,6 +139,8 @@ router = APIRouter()
 
 routes = [
     ("/post/codegen-challenge", post_codegen_challenge, ["POST"]),
+    ("/post/codegen-response", post_codegen_response, ["POST"]),
+    ("/post/regression-response", post_regression_response, ["POST"]),
     ("/get/agents", get_agents, ["GET"]),
     ("/get/agent-metadata", get_agent_metadata, ["GET"]),
     ("/get/agent-zip", get_agent_zip, ["GET"]),

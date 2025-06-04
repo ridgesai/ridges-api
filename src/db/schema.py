@@ -64,6 +64,38 @@ class Response(Base):
     score: Mapped[float] = mapped_column(Float, nullable=True)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     response_patch: Mapped[str] = mapped_column(String, nullable=True)
+    
+    # Add discriminator column for polymorphic inheritance
+    type: Mapped[str] = mapped_column(String, nullable=False)
 
     challenge: Mapped["Challenge"] = relationship(back_populates="responses")
     agent: Mapped["Agent"] = relationship(back_populates="responses")
+
+    __mapper_args__ = {
+        "polymorphic_identity": "response",
+        "polymorphic_on": type
+    }
+
+class CodegenResponse(Response):
+    __tablename__ = "codegen_response_table"
+    
+    # Add foreign keys to parent table
+    challenge_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.challenge_id"), primary_key=True)
+    agent_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.agent_id"), primary_key=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "codegen",
+        "inherit_condition": (challenge_id == Response.challenge_id) & (agent_id == Response.agent_id)
+    }
+
+class RegressionResponse(Response):
+    __tablename__ = "regression_response_table"
+    
+    # Add foreign keys to parent table
+    challenge_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.challenge_id"), primary_key=True)
+    agent_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.agent_id"), primary_key=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "regression",
+        "inherit_condition": (challenge_id == Response.challenge_id) & (agent_id == Response.agent_id)
+    }

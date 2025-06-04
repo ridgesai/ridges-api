@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, validator, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from src.utils.config import PROBLEM_TYPES
 
 # Base models for shared attributes
@@ -65,6 +65,12 @@ class ResponseBase(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class CodegenResponseBase(ResponseBase):
+    pass
+
+class RegressionResponseBase(ResponseBase):
+    pass
+
 # Create models (for input validation)
 class ChallengeCreate(ChallengeBase):
     pass
@@ -76,6 +82,12 @@ class AgentCreate(AgentBase):
     pass
 
 class ResponseCreate(ResponseBase):
+    pass
+
+class CodegenResponseCreate(CodegenResponseBase):
+    pass
+
+class RegressionResponseCreate(RegressionResponseBase):
     pass
 
 # Read models (for output serialization)
@@ -93,8 +105,19 @@ class ChallengeRead(ChallengeBase):
     codegen_challenges: Optional[CodegenChallengeRead] = None
     responses: List[ResponseRead] = []
 
+class CodegenResponseRead(CodegenResponseBase):
+    challenge: Optional["ChallengeRead"] = None
+    agent: Optional["AgentRead"] = None
+
+class RegressionResponseRead(RegressionResponseBase):
+    challenge: Optional["ChallengeRead"] = None
+    agent: Optional["AgentRead"] = None
+
+
 # Update forward references
 ChallengeRead.model_rebuild()
 CodegenChallengeRead.model_rebuild()
 ResponseRead.model_rebuild()
 AgentRead.model_rebuild()
+CodegenResponseRead.model_rebuild()
+RegressionResponseRead.model_rebuild()
