@@ -28,7 +28,10 @@ class DatabaseManager:
         with Session(self.engine) as session:
             return session.query(Agent).filter(Agent.agent_id == agent_id).first()
         
-    def get_all_agents(self) -> List[Agent]:
+    def get_agents(self, type: str = None) -> List[Agent]:
         with Session(self.engine) as session:
-            return session.query(Agent).all()
+            if type:
+                return session.query(Agent).filter(Agent.type == type).all()
+            else:
+                return session.query(Agent).all()
 

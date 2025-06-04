@@ -8,7 +8,7 @@ import boto3
 import shutil
 
 from src.utils.auth import verify_request
-from src.utils.config import S3_BUCKET_NAME
+from src.utils.config import S3_BUCKET_NAME, AGENT_TYPES
 
 from db.models import CodegenChallengeCreate
 from db.schema import Challenge, CodegenChallenge
@@ -54,9 +54,12 @@ async def upload_codegen_challenge(codegenChallengePayload: CodegenChallengeCrea
         "message": "Challenge uploaded successfully",
     }
 
-async def get_all_agents():
+async def get_all_agents(type: str = None):
+    if type and type not in AGENT_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid agent type. Must be one of: {AGENT_TYPES}")
+    
     try:
-        agents = db.get_all_agents()
+        agents = db.get_agents(type)
     except Exception as e:
         logger.error(f"Error getting all agents: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
