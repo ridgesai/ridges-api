@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 
 db = DatabaseManager(Path("platform.db"))
 
-async def post_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate):
+async def post_codegen_challenges(codegenChallengePayload: List[CodegenChallengeCreate]):
     try:
-        codegen_challenge = CodegenChallenge(**codegenChallengePayload.model_dump())
-        db.add_codegen_challenge(codegen_challenge)
+        for challenge in codegenChallengePayload:
+            codegen_challenge = CodegenChallenge(**challenge.model_dump())
+            db.add_codegen_challenge(codegen_challenge)
     except IntegrityError as e:
         logger.error(f"Error uploading challenge - database integrity error: {str(e)}")
         raise HTTPException(status_code=409, detail=f"Challenge already exists.")
@@ -38,10 +39,11 @@ async def post_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate
         "message": "Challenge uploaded successfully",
     }
 
-async def post_regression_challenge(regressionChallengePayload: RegressionChallengeCreate):
+async def post_regression_challenges(regressionChallengePayload: List[RegressionChallengeCreate]):
     try:
-        regression_challenge = RegressionChallenge(**regressionChallengePayload.model_dump())
-        db.add_regression_challenge(regression_challenge)
+        for challenge in regressionChallengePayload:
+            regression_challenge = RegressionChallenge(**challenge.model_dump())
+            db.add_regression_challenge(regression_challenge)
     except IntegrityError as e:
         logger.error(f"Error uploading challenge - database integrity error: {str(e)}")
         raise HTTPException(status_code=409, detail=f"Challenge already exists.")
@@ -57,10 +59,11 @@ async def post_regression_challenge(regressionChallengePayload: RegressionChalle
         "message": "Challenge uploaded successfully",
     }
 
-async def post_codegen_response(codegenResponsePayload: CodegenResponseCreate):
+async def post_codegen_responses(codegenResponsePayload: List[CodegenResponseCreate]):
     try:
-        codegen_response = CodegenResponse(**codegenResponsePayload.model_dump())
-        db.add_codegen_response(codegen_response)
+        for response in codegenResponsePayload:
+            codegen_response = CodegenResponse(**response.model_dump())
+            db.add_codegen_response(codegen_response)
     except IntegrityError as e:
         logger.error(f"Error uploading response - database integrity error: {str(e)}")
         raise HTTPException(status_code=409, detail=f"Response already exists.")
@@ -76,10 +79,11 @@ async def post_codegen_response(codegenResponsePayload: CodegenResponseCreate):
         "message": "Response uploaded successfully",
     }
     
-async def post_regression_response(regressionResponsePayload: RegressionResponseCreate):
+async def post_regression_responses(regressionResponsePayload: List[RegressionResponseCreate]):
     try:
-        regression_response = RegressionResponse(**regressionResponsePayload.model_dump())
-        db.add_regression_response(regression_response)
+        for response in regressionResponsePayload:
+            regression_response = RegressionResponse(**response.model_dump())
+            db.add_regression_response(regression_response)
     except IntegrityError as e:
         logger.error(f"Error uploading response - database integrity error: {str(e)}")
         raise HTTPException(status_code=409, detail=f"Response already exists.")
@@ -159,10 +163,10 @@ async def get_agent_zip(agent_id: str, background_tasks: BackgroundTasks):
 router = APIRouter()
 
 routes = [
-    ("/post/codegen-challenge", post_codegen_challenge, ["POST"]),
-    ("/post/codegen-response", post_codegen_response, ["POST"]),
-    ("/post/regression-response", post_regression_response, ["POST"]),
-    ("/post/regression-challenge", post_regression_challenge, ["POST"]),
+    ("/post/codegen-challenges", post_codegen_challenges, ["POST"]),
+    ("/post/codegen-responses", post_codegen_responses, ["POST"]),
+    ("/post/regression-responses", post_regression_responses, ["POST"]),
+    ("/post/regression-challenges", post_regression_challenges, ["POST"]),
     ("/get/agents", get_agents, ["GET"]),
     ("/get/agent-metadata", get_agent_metadata, ["GET"]),
     ("/get/agent-zip", get_agent_zip, ["GET"]),
