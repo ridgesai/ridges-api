@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, File, UploadFile
 import logging
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import zipfile
 import shutil
 import uuid
@@ -22,7 +21,7 @@ db = DatabaseManager(Path("platform.db"))
 
 router = APIRouter()
 
-async def upload_agent(
+async def post_agent(
     zip_file: UploadFile = File(...),
     miner_hotkey: str = None,
     type: str = None,
@@ -82,6 +81,14 @@ async def upload_agent(
             # Get list of file information
             file_list = zip_ref.infolist()
             
+            # Get the root folder name (first path component of any file)
+            root_folder = None
+            for file_info in file_list:
+                path_parts = file_info.filename.split('/')
+                if len(path_parts) > 1:
+                    root_folder = path_parts[0]
+                    break
+            
             # Process each file in the zip
             for file_info in file_list:
                 # Check if this file would exceed our size limit
@@ -90,6 +97,15 @@ async def upload_agent(
                         status_code=400,
                         detail="Unzipped content would exceed 1MB limit"
                     )
+                
+                # Skip the root folder itself
+                if file_info.filename == root_folder + '/':
+                    continue
+                
+                # Remove root folder from path and extract
+                if root_folder and file_info.filename.startswith(root_folder + '/'):
+                    new_filename = file_info.filename[len(root_folder) + 1:]
+                    file_info.filename = new_filename
                 
                 # Extract the file into src subdirectory
                 zip_ref.extract(file_info, src_dir)
@@ -156,7 +172,7 @@ async def upload_agent(
 router = APIRouter()
 
 routes = [
-    ("/post/agent", upload_agent, ["POST"])
+    ("/post/agent", post_agent, ["POST"])
 ]
 
 for path, endpoint, methods in routes:

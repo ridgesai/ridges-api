@@ -28,6 +28,7 @@ class Agent(Base):
     agent_id: Mapped[str] = mapped_column(String, primary_key=True)
     miner_hotkey: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
+    last_updated: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     elo: Mapped[int] = mapped_column(Integer, nullable=False)

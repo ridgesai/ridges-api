@@ -28,6 +28,7 @@ class AgentBase(BaseModel):
     agent_id: str
     miner_hotkey: str
     created_at: datetime
+    last_updated: datetime
     type: str
     version: int
     elo: int

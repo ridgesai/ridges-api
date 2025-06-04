@@ -27,7 +27,7 @@ async def raw_logs(data: List[Dict[str, Any]]):
         "message": "not implemented",
     }
 
-async def upload_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate):
+async def post_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate):
     try:
         codegenChallenge = CodegenChallenge(**codegenChallengePayload.model_dump())
         db.add_codegen_challenge(codegenChallenge)
@@ -54,15 +54,20 @@ async def upload_codegen_challenge(codegenChallengePayload: CodegenChallengeCrea
         "message": "Challenge uploaded successfully",
     }
 
-async def get_all_agents(type: str = None):
+async def get_agents(type: str = None):
     if type and type not in AGENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid agent type. Must be one of: {AGENT_TYPES}")
     
     try:
-        agents = db.get_agents(type)
+        agents = db.get_agents(type=type)
     except Exception as e:
         logger.error(f"Error getting all agents: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
+    
+    if not agents and type:
+        raise HTTPException(status_code=404, detail=f"No agents with type {type} found")
+    elif not agents:
+        raise HTTPException(status_code=404, detail=f"No agents found")
     
     return {
         "status": "success",
@@ -71,7 +76,7 @@ async def get_all_agents(type: str = None):
 
 async def get_agent_metadata(agent_id: str):
     try:
-        agent = db.get_agent(agent_id)
+        agent = db.get_agents(agent_id=agent_id)[0]
     except Exception as e:
         logger.error(f"Error getting agent metadata: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
@@ -86,7 +91,7 @@ async def get_agent_metadata(agent_id: str):
 
 async def get_agent_zip(agent_id: str, background_tasks: BackgroundTasks):
     try:
-        agent = db.get_agent(agent_id)
+        agent = db.get_agents(agent_id=agent_id)[0]
     except Exception as e:
         logger.error(f"Error getting agent: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
@@ -110,15 +115,15 @@ async def get_agent_zip(agent_id: str, background_tasks: BackgroundTasks):
     
     return FileResponse(path=f'{temp_dir}/agent.zip', filename='agent.zip')
 
-
 router = APIRouter()
 
 routes = [
     ("/logs", raw_logs, ["POST"]),
-    ("/post/codegen-challenge", upload_codegen_challenge, ["POST"]),
-    ("/get/all-agents", get_all_agents, ["GET"]),
+    ("/post/codegen-challenge", post_codegen_challenge, ["POST"]),
+    ("/get/agents", get_agents, ["GET"]),
     ("/get/agent-metadata", get_agent_metadata, ["GET"]),
-    ("/get/agent-zip", get_agent_zip, ["GET"])
+    ("/get/agent-zip", get_agent_zip, ["GET"]),
+    ("/get/agent-objects", get_agent_objects, ["GET"])
 ]
 
 for path, endpoint, methods in routes:
