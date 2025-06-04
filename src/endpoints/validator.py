@@ -19,14 +19,6 @@ logger = logging.getLogger(__name__)
 
 db = DatabaseManager(Path("platform.db"))
 
-async def raw_logs(data: List[Dict[str, Any]]):
-    # TODO: implement log drain. Not sure how you want to do this
-    
-    return {
-        "status": "error",
-        "message": "not implemented",
-    }
-
 async def post_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate):
     try:
         codegenChallenge = CodegenChallenge(**codegenChallengePayload.model_dump())
@@ -118,7 +110,6 @@ async def get_agent_zip(agent_id: str, background_tasks: BackgroundTasks):
 router = APIRouter()
 
 routes = [
-    ("/logs", raw_logs, ["POST"]),
     ("/post/codegen-challenge", post_codegen_challenge, ["POST"]),
     ("/get/agents", get_agents, ["GET"]),
     ("/get/agent-metadata", get_agent_metadata, ["GET"]),
