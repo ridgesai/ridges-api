@@ -79,7 +79,7 @@ async def get_agent_responses(agent_id: str):
     responses_obj = []
 
     for response in responses:
-        challenge = db.get_codegen_challenges(challenge_id=response.challenge_id)
+        challenge = db.get_challenges(challenge_id=response.challenge_id)
         if not challenge:
             logger.error(f"Challenge {response.challenge_id} not found")
             continue

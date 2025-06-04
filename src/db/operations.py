@@ -107,3 +107,10 @@ class DatabaseManager:
             if agent_id:
                 query = query.filter(Response.agent_id == agent_id)
             return query.all()
+        
+    def get_challenges(self, challenge_id: str = None):
+        with Session(self.engine) as session:
+            query = session.query(Challenge)
+            if challenge_id:
+                query = query.filter(Challenge.challenge_id == challenge_id)
+            return query.all()

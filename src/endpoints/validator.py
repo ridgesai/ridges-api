@@ -71,6 +71,11 @@ async def post_codegen_response(codegenResponsePayload: CodegenResponseCreate):
         logger.error(f"Error uploading response: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Invalid request body format.")
     
+    return {
+        "status": "success",
+        "message": "Response uploaded successfully",
+    }
+    
 async def post_regression_response(regressionResponsePayload: RegressionResponseCreate):
     try:
         regression_response = RegressionResponse(**regressionResponsePayload.model_dump())
@@ -84,6 +89,11 @@ async def post_regression_response(regressionResponsePayload: RegressionResponse
     except Exception as e:
         logger.error(f"Error uploading response: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Invalid request body format.")
+    
+    return {
+        "status": "success",
+        "message": "Response uploaded successfully",
+    }
 
 async def get_agents(type: str = None):
     if type and type not in PROBLEM_TYPES:
