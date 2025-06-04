@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-from src.utils.config import AGENT_TYPES
+from src.utils.config import PROBLEM_TYPES
 from src.utils.auth import verify_request
 
 from db.schema import Agent
@@ -40,10 +40,10 @@ async def post_agent(
             status_code=400,
             detail="miner_hotkey is required"
         )
-    if not type or type not in AGENT_TYPES:
+    if not type or type not in PROBLEM_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"type is required and must be one of {AGENT_TYPES}"
+            detail=f"type is required and must be one of {PROBLEM_TYPES}"
         )
     
     # If agent_id is provided, get the agent from the database

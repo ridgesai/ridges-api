@@ -8,7 +8,7 @@ import boto3
 import shutil
 
 from src.utils.auth import verify_request
-from src.utils.config import S3_BUCKET_NAME, AGENT_TYPES
+from src.utils.config import S3_BUCKET_NAME, PROBLEM_TYPES
 
 from db.models import CodegenChallengeCreate
 from db.schema import Challenge, CodegenChallenge
@@ -55,8 +55,8 @@ async def post_codegen_challenge(codegenChallengePayload: CodegenChallengeCreate
     }
 
 async def get_agents(type: str = None):
-    if type and type not in AGENT_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid agent type. Must be one of: {AGENT_TYPES}")
+    if type and type not in PROBLEM_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid agent type. Must be one of: {PROBLEM_TYPES}")
     
     try:
         agents = db.get_agents(type=type)
@@ -115,61 +115,6 @@ async def get_agent_zip(agent_id: str, background_tasks: BackgroundTasks):
     
     return FileResponse(path=f'{temp_dir}/agent.zip', filename='agent.zip')
 
-async def get_agent_objects(agent_id: str, path: str = ""):
-    try:
-        agent = db.get_agents(agent_id=agent_id)
-    except Exception as e:
-        logger.error(f"Error getting agent: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error. Please try again later.")
-    
-    if not agent or len(agent) == 0:
-        raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
-    
-    # Get agent and declare prefix
-    agent = agent[0]
-    prefix = f'{agent_id}/src/{path}'
-    
-    if not path or path.endswith("/"):
-        # Get contents of prefix
-        try:
-            s3 = boto3.client('s3')
-            contents = s3.list_objects_v2(Bucket=S3_BUCKET_NAME, Prefix=prefix)['Contents']
-        except Exception as e:
-            logger.error(f"Error downloading agent from S3: {str(e)}")
-            raise HTTPException(status_code=500, detail="Internal server error. Please try again later.")
-        
-        # Get filenames
-        filenames = []
-        for obj in contents:
-            filename = obj['Key'].split(prefix)[1]
-            if "/" in filename:
-                filename = filename.split("/")[0] + "/"
-            filenames.append(filename)
-        
-        # Remove duplicates
-        filenames = list(set(filenames))
-
-        return {
-            "status": "success",
-            "filename": filenames,
-        }
-    
-    try:
-        s3 = boto3.client('s3')
-        response = s3.get_object(Bucket=S3_BUCKET_NAME, Key=f'{agent_id}/src/{path}')
-    except Exception as e:
-        logger.error(f"Error downloading agent from S3: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error. Please try again later.")
-    
-    file_content = response['Body'].read().decode('utf-8')
-    filename = path.split("/")[-1]
-
-    return {
-        "status": "success",
-        "filename": filename,
-        "file_content": file_content,
-    }
-
 router = APIRouter()
 
 routes = [
@@ -178,7 +123,6 @@ routes = [
     ("/get/agents", get_agents, ["GET"]),
     ("/get/agent-metadata", get_agent_metadata, ["GET"]),
     ("/get/agent-zip", get_agent_zip, ["GET"]),
-    ("/get/agent-objects", get_agent_objects, ["GET"])
 ]
 
 for path, endpoint, methods in routes:

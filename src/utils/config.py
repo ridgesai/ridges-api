@@ -1,5 +1,5 @@
 S3_BUCKET_NAME = "ridges-agents"
-AGENT_TYPES = ["codegen", "regression"]
+PROBLEM_TYPES = ["codegen", "regression"]
 
 AGENT_FIELDS = [
     "agent_id",

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 
-from db.schema import Agent, CodegenChallenge, Challenge, Base
+from db.schema import Agent, CodegenChallenge, Challenge, Base, Response
 from src.utils.config import AGENT_FIELDS
 
 class DatabaseManager:
@@ -80,4 +80,17 @@ class DatabaseManager:
             query = query.order_by(getattr(Agent, order_by).desc() if not order_asc else getattr(Agent, order_by))
 
             return query.all()
-
+        
+    def get_responses(self, agent_id: str = None):
+        with Session(self.engine) as session:
+            query = session.query(Response)
+            if agent_id:
+                query = query.filter(Response.agent_id == agent_id)
+            return query.all()
+        
+    def get_codegen_challenges(self, challenge_id: str = None):
+        with Session(self.engine) as session:
+            query = session.query(CodegenChallenge)
+            if challenge_id:
+                query = query.filter(Challenge.challenge_id == challenge_id)
+            return query.all()
