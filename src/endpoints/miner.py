@@ -103,6 +103,7 @@ async def upload_agent(
             check=True
         )
 
+        # If agent_id is provided, get the agent from the database
         if agent_id:
             agent = db.get_agent(agent_id)
             created_at = agent.created_at
@@ -143,10 +144,10 @@ async def upload_agent(
             detail="Error storing agent"
         )
     except Exception as e:
-        logger.error(f"Error processing zip file: {str(e)}")
+        logger.error(f"Error uploading agent: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="Error processing zip file"
+            detail="Error uploading agent"
         )
     finally:
         if temp_dir.exists():
@@ -155,14 +156,14 @@ async def upload_agent(
 router = APIRouter()
 
 routes = [
-    ("/upload-agent", upload_agent)
+    ("/post/agent", upload_agent, ["POST"])
 ]
 
-for path, endpoint in routes:
+for path, endpoint, methods in routes:
     router.add_api_route(
         path,
         endpoint,
         tags=["miner"],
         dependencies=[Depends(verify_request)],
-        methods=["POST"]
+        methods=methods
     )

@@ -2,6 +2,7 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from db.schema import Agent, CodegenChallenge, Challenge, Base
+from typing import List
 
 class DatabaseManager:
     def __init__(self, db_path: Path):
@@ -26,4 +27,8 @@ class DatabaseManager:
     def get_agent(self, agent_id: str) -> Agent:
         with Session(self.engine) as session:
             return session.query(Agent).filter(Agent.agent_id == agent_id).first()
+        
+    def get_all_agents(self) -> List[Agent]:
+        with Session(self.engine) as session:
+            return session.query(Agent).all()
 

@@ -25,7 +25,7 @@ class Challenge(Base):
 class Agent(Base):
     __tablename__ = "agent_table"
 
-    agent_id: Mapped[str] = mapped_column(String, primary_key=True, onupdate="CASCADE")
+    agent_id: Mapped[str] = mapped_column(String, primary_key=True)
     miner_hotkey: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
@@ -33,7 +33,7 @@ class Agent(Base):
     elo: Mapped[int] = mapped_column(Integer, nullable=False)
     num_responses: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    responses: Mapped[List["Response"]] = relationship(back_populates="agent", cascade="all, delete-orphan")
+    responses: Mapped[List["Response"]] = relationship(back_populates="agent")
 
 class CodegenChallenge(Base):
     __tablename__ = "codegen_challenge_table"
