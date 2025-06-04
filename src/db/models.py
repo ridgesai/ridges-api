@@ -19,17 +19,18 @@ class ChallengeBase(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class CodegenChallengeBase(BaseModel):
-    challenge_id: str
-    validator_hotkey: str
-    created_at: datetime
+class CodegenChallengeBase(ChallengeBase):
     problem_statement: str
     dynamic_checklist: str
     repository_url: str
     commit_hash: Optional[str] = None
     context_file_paths: str
 
-    model_config = ConfigDict(from_attributes=True)
+class RegressionChallengeBase(ChallengeBase):
+    problem_statement: str
+    repository_url: str
+    commit_hash: Optional[str] = None
+    context_file_paths: str
 
 class AgentBase(BaseModel):
     agent_id: str
@@ -76,6 +77,9 @@ class ChallengeCreate(ChallengeBase):
     pass
 
 class CodegenChallengeCreate(CodegenChallengeBase):
+    pass
+
+class RegressionChallengeCreate(RegressionChallengeBase):
     pass
 
 class AgentCreate(AgentBase):

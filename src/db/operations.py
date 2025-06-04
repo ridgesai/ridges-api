@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 
-from db.schema import Agent, CodegenChallenge, Challenge, Base, Response, CodegenResponse, RegressionResponse
+from db.schema import Agent, CodegenChallenge, RegressionChallenge, Challenge, Base, Response, CodegenResponse, RegressionResponse
 from src.utils.config import AGENT_FIELDS
 
 class DatabaseManager:
@@ -35,6 +35,16 @@ class DatabaseManager:
     def add_regression_response(self, regression_response: RegressionResponse):
         with Session(self.engine) as session:
             session.add(regression_response)
+            session.commit()
+
+    def add_codegen_challenge(self, codegen_challenge: CodegenChallenge):
+        with Session(self.engine) as session:
+            session.add(codegen_challenge)
+            session.commit()
+
+    def add_regression_challenge(self, regression_challenge: RegressionChallenge):
+        with Session(self.engine) as session:
+            session.add(regression_challenge)
             session.commit()
         
     def get_agents(
@@ -96,11 +106,4 @@ class DatabaseManager:
             query = session.query(Response)
             if agent_id:
                 query = query.filter(Response.agent_id == agent_id)
-            return query.all()
-        
-    def get_codegen_challenges(self, challenge_id: str = None):
-        with Session(self.engine) as session:
-            query = session.query(CodegenChallenge)
-            if challenge_id:
-                query = query.filter(Challenge.challenge_id == challenge_id)
             return query.all()

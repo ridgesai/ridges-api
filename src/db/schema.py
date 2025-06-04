@@ -16,11 +16,52 @@ class Challenge(Base):
 
     challenge_id: Mapped[str] = mapped_column(String, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)
     validator_hotkey: Mapped[str] = mapped_column(String, nullable=False)
 
+    # Add discriminator column for polymorphic inheritance
+    type: Mapped[str] = mapped_column(String, nullable=False)
+
     codegen_challenges: Mapped["CodegenChallenge"] = relationship(back_populates="challenge")
+    regression_challenges: Mapped["RegressionChallenge"] = relationship(back_populates="challenge")
     responses: Mapped[List["Response"]] = relationship(back_populates="challenge")
+
+    __mapper_args__ = {
+        "polymorphic_identity": "challenge",
+        "polymorphic_on": type
+    }
+
+class CodegenChallenge(Challenge):
+    __tablename__ = "codegen_challenge_table"
+
+    challenge_id: Mapped[str] = mapped_column(String, ForeignKey("challenge_table.challenge_id"), primary_key=True)
+    problem_statement: Mapped[str] = mapped_column(String, nullable=False)
+    dynamic_checklist: Mapped[str] = mapped_column(String, nullable=False)
+    repository_url: Mapped[str] = mapped_column(String, nullable=False)
+    commit_hash: Mapped[str] = mapped_column(String, nullable=True)
+    context_file_paths: Mapped[str] = mapped_column(String, nullable=False)
+
+    challenge: Mapped["Challenge"] = relationship(back_populates="codegen_challenges")
+
+    __mapper_args__ = {
+        "polymorphic_identity": "codegen",
+        "inherit_condition": challenge_id == Challenge.challenge_id
+    }
+
+class RegressionChallenge(Challenge):
+    __tablename__ = "regression_challenge_table"
+
+    challenge_id: Mapped[str] = mapped_column(String, ForeignKey("challenge_table.challenge_id"), primary_key=True)
+    problem_statement: Mapped[str] = mapped_column(String, nullable=False)
+    repository_url: Mapped[str] = mapped_column(String, nullable=False)
+    commit_hash: Mapped[str] = mapped_column(String, nullable=True)
+    context_file_paths: Mapped[str] = mapped_column(String, nullable=False)
+
+    challenge: Mapped["Challenge"] = relationship(back_populates="regression_challenges")
+
+    __mapper_args__ = {
+        "polymorphic_identity": "regression",
+        "inherit_condition": challenge_id == Challenge.challenge_id
+    }
 
 class Agent(Base):
     __tablename__ = "agent_table"
@@ -35,20 +76,6 @@ class Agent(Base):
     num_responses: Mapped[int] = mapped_column(Integer, nullable=False)
 
     responses: Mapped[List["Response"]] = relationship(back_populates="agent")
-
-class CodegenChallenge(Base):
-    __tablename__ = "codegen_challenge_table"
-
-    challenge_id: Mapped[str] = mapped_column(String, ForeignKey("challenge_table.challenge_id"), primary_key=True)
-    validator_hotkey: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, nullable=False)
-    problem_statement: Mapped[str] = mapped_column(String, nullable=False)
-    dynamic_checklist: Mapped[str] = mapped_column(String, nullable=False)
-    repository_url: Mapped[str] = mapped_column(String, nullable=False)
-    commit_hash: Mapped[str] = mapped_column(String, nullable=True)
-    context_file_paths: Mapped[str] = mapped_column(String, nullable=False)
-
-    challenge: Mapped["Challenge"] = relationship(back_populates="codegen_challenges")
 
 class Response(Base):
     __tablename__ = "response_table"
@@ -79,7 +106,6 @@ class Response(Base):
 class CodegenResponse(Response):
     __tablename__ = "codegen_response_table"
     
-    # Add foreign keys to parent table
     challenge_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.challenge_id"), primary_key=True)
     agent_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.agent_id"), primary_key=True)
 
@@ -91,7 +117,6 @@ class CodegenResponse(Response):
 class RegressionResponse(Response):
     __tablename__ = "regression_response_table"
     
-    # Add foreign keys to parent table
     challenge_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.challenge_id"), primary_key=True)
     agent_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.agent_id"), primary_key=True)
 
