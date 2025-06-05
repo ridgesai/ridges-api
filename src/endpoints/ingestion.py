@@ -12,33 +12,53 @@ logger = logging.getLogger(__name__)
 db = DatabaseManager(Path("platform.db"))
 
 async def codegen_challenges(data: List[CodegenChallenge]):
-    try:
-        for challenge in data:
-            db.store_codegen_challenge(challenge)
-    except Exception as e:
-        logger.error(f"Error parsing codegen challenges: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Challenge {challenge.challenge_id} already exists in database")   
+    details = {
+        "total_sent_codegen_challenges": len(data),
+        "total_stored_codegen_challenges": 0,
+        "total_unstored_codegen_challenges": 0,
+        "list_of_stored_codegen_challenges": [],
+        "list_of_unstored_codegen_challenges": [],
+    }
+
+    for challenge in data:
+        result = db.store_codegen_challenge(challenge)
+        if result == 0:
+            details["total_unstored_codegen_challenges"] += 1
+            details["list_of_unstored_codegen_challenges"].append(challenge.challenge_id + "-" + challenge.validator_hotkey)
+        else:
+            details["total_stored_codegen_challenges"] += 1
+            details["list_of_stored_codegen_challenges"].append(challenge.challenge_id + "-" + challenge.validator_hotkey)
 
     return {
         "status": "success",
-        "message": f"Successfully recorded {len(data)} codegen challenges",
+        "details": details,
+        "message": f"Successfully stored {details['total_stored_codegen_challenges']} of {details['total_sent_codegen_challenges']} codegen challenges. {details['total_unstored_codegen_challenges']} challenges were not stored due to duplicate challenge ids",
     }
 
 
 async def codegen_responses(data: List[CodegenResponse]):
+    details = {
+        "total_sent_codegen_responses": len(data),
+        "total_stored_codegen_responses": 0,
+        "total_unstored_codegen_responses": 0,
+        "list_of_stored_codegen_responses": [],
+        "list_of_unstored_codegen_responses": [],
+    }
 
     for response in data:
-        try:
-            db.store_codegen_response(response)
-        except Exception as e:
-            logger.error(f"Error parsing codegen responses: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Response with fron miner hotkey {response.miner_hotkey} for challenge {response.challenge_id} already exists in database")
+        result = db.store_codegen_response(response)
+        if result == 0:
+            details["total_unstored_codegen_responses"] += 1
+            details["list_of_unstored_codegen_responses"].append(response.challenge_id)
+        else:
+            details["total_stored_codegen_responses"] += 1
+            details["list_of_stored_codegen_responses"].append(response.challenge_id)
 
     return {
         "status": "success",
-        "message": f"Successfully recorded {len(data)} codegen responses",
+        "details": details,
+        "message": f"Successfully stored {details['total_stored_codegen_responses']} of {details['total_sent_codegen_responses']} codegen responses. {details['total_unstored_codegen_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations",
     }
-
 
 router = APIRouter()
 
