@@ -1,8 +1,7 @@
-from typing import List, Dict, Any
+from typing import List
 from pathlib import Path
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 import logging
-import json
 
 from src.utils.auth import verify_request
 from src.db.models import CodegenChallenge, CodegenResponse
@@ -10,7 +9,7 @@ from src.db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
-db = DatabaseManager(Path("data.db"))
+db = DatabaseManager(Path("platform.db"))
 
 async def codegen_challenges(data: List[CodegenChallenge]):
     try:

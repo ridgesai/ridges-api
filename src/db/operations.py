@@ -1,7 +1,5 @@
 import json
 import sqlite3
-from typing import List, Optional, Dict, Any
-from datetime import timedelta
 from pathlib import Path
 import logging
 
