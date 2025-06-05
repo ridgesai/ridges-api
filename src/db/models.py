@@ -62,7 +62,6 @@ class ResponseBase(BaseModel):
     evaluated: bool = False
     score: Optional[float] = None
     evaluated_at: Optional[datetime] = None
-    response_patch: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -88,11 +87,11 @@ class AgentCreate(AgentBase):
 class ResponseCreate(ResponseBase):
     pass
 
-class CodegenResponseCreate(CodegenResponseBase):
-    pass
+class CodegenResponseCreate(ResponseCreate):
+    response_patch: str = None
 
-class RegressionResponseCreate(RegressionResponseBase):
-    pass
+class RegressionResponseCreate(ResponseCreate):
+    response_patch: str = None
 
 # Read models (for output serialization)
 class ResponseRead(ResponseBase):

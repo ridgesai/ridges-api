@@ -90,7 +90,6 @@ class Response(Base):
     evaluated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=True)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    response_patch: Mapped[str] = mapped_column(String, nullable=True)
     
     # Add discriminator column for polymorphic inheritance
     type: Mapped[str] = mapped_column(String, nullable=False)
@@ -108,6 +107,7 @@ class CodegenResponse(Response):
     
     challenge_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.challenge_id"), primary_key=True)
     agent_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.agent_id"), primary_key=True)
+    response_patch: Mapped[str] = mapped_column(String, nullable=True)
 
     __mapper_args__ = {
         "polymorphic_identity": "codegen",
@@ -119,6 +119,7 @@ class RegressionResponse(Response):
     
     challenge_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.challenge_id"), primary_key=True)
     agent_id: Mapped[str] = mapped_column(String, ForeignKey("response_table.agent_id"), primary_key=True)
+    response_patch: Mapped[str] = mapped_column(String, nullable=True)
 
     __mapper_args__ = {
         "polymorphic_identity": "regression",
