@@ -29,6 +29,10 @@ async def codegen_challenges(data: List[CodegenChallenge]):
             details["total_stored_codegen_challenges"] += 1
             details["list_of_stored_codegen_challenges"].append(challenge.challenge_id + "-" + challenge.validator_hotkey)
 
+    logger.info(f"Successfully stored {details['total_stored_codegen_challenges']} of {details['total_sent_codegen_challenges']} codegen challenges. {details['total_unstored_codegen_challenges']} challenges were not stored due to duplicate challenge ids")
+    logger.info(f"List of stored codegen challenges: {details['list_of_stored_codegen_challenges']}")
+    logger.info(f"List of unstored codegen challenges: {details['list_of_unstored_codegen_challenges']}")
+
     return {
         "status": "success",
         "details": details,
@@ -53,6 +57,10 @@ async def codegen_responses(data: List[CodegenResponse]):
         else:
             details["total_stored_codegen_responses"] += 1
             details["list_of_stored_codegen_responses"].append(response.challenge_id)
+
+    logger.info(f"Successfully stored {details['total_stored_codegen_responses']} of {details['total_sent_codegen_responses']} codegen responses. {details['total_unstored_codegen_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations")
+    logger.info(f"List of stored codegen responses: {details['list_of_stored_codegen_responses']}")
+    logger.info(f"List of unstored codegen responses: {details['list_of_unstored_codegen_responses']}")
 
     return {
         "status": "success",
