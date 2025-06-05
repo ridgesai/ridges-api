@@ -8,10 +8,10 @@ class CodegenChallenge(BaseModel):
     validator_hotkey: str
     created_at: datetime
     problem_statement: str
-    dynamic_checklist: List[str]
+    dynamic_checklist: str
     repository_url: str
     commit_hash: Optional[str]
-    context_file_paths: List[str]
+    context_file_paths: str
 
 class CodegenResponse(BaseModel):
     challenge_id: str
