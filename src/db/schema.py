@@ -7,32 +7,26 @@ SCHEMA_VERSION = 1
 def get_schema_v1() -> List[str]:
     """Database schema for version 1"""
     return [
-        # Codegen challenges table
+        # Challenges table
         """
-        CREATE TABLE IF NOT EXISTS codegen_challenges (
+        CREATE TABLE IF NOT EXISTS challenges (
             challenge_id TEXT PRIMARY KEY,  -- UUID for the challenge
-            created_at TIMESTAMP NOT NULL,
-            problem_statement TEXT NOT NULL,
-            dynamic_checklist TEXT NOT NULL,  -- Stored as JSON array
-            repository_name TEXT NOT NULL,
-            commit_hash TEXT,
-            context_file_paths TEXT NOT NULL -- JSON array of file paths relative to repo root
+            type TEXT NOT NULL CHECK(type IN ('codegen', 'regression')),
+            validator_hotkey TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL
         )
         """,
 
-        # Challenge assignments table
+        # Codegen challenges table
         """
-        CREATE TABLE IF NOT EXISTS challenge_assignments (
-            assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            challenge_id TEXT NOT NULL,  -- UUID for the problem
-            miner_hotkey TEXT NOT NULL,
-            node_id INTEGER NOT NULL,
-            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            sent_at TIMESTAMP,
-            completed_at TIMESTAMP,
-            status TEXT CHECK(status IN ('assigned', 'sent', 'completed', 'failed')) DEFAULT 'assigned',
-            FOREIGN KEY (challenge_id) REFERENCES codegen_challenges(challenge_id),
-            UNIQUE(challenge_id, miner_hotkey)
+        CREATE TABLE IF NOT EXISTS codegen_challenges (
+            challenge_id TEXT PRIMARY KEY,
+            problem_statement TEXT NOT NULL, -- Problem statement for codegen challenges
+            dynamic_checklist TEXT NOT NULL,  -- Stored as JSON array
+            repository_url TEXT NOT NULL,     -- URL of the repository
+            commit_hash TEXT,                 -- Optional commit hash for codegen challenges
+            context_file_paths TEXT NOT NULL, -- JSON array of file paths relative to repo root
+            FOREIGN KEY (challenge_id) REFERENCES challenges(challenge_id) ON DELETE CASCADE
         )
         """,
 
@@ -48,39 +42,20 @@ def get_schema_v1() -> List[str]:
             evaluated BOOLEAN DEFAULT FALSE,
             score FLOAT,
             evaluated_at TIMESTAMP,
-            response_patch TEXT,
             PRIMARY KEY (challenge_id, miner_hotkey),
-            FOREIGN KEY (challenge_id) REFERENCES codegen_challenges(challenge_id),
-            FOREIGN KEY (challenge_id, miner_hotkey) REFERENCES challenge_assignments(challenge_id, miner_hotkey)
+            FOREIGN KEY (challenge_id) REFERENCES challenges(challenge_id)
         )
         """,
 
-        # Availability checks table
+        # Codegen responses table
         """
-        CREATE TABLE IF NOT EXISTS availability_checks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            node_id INTEGER NOT NULL,
-            hotkey TEXT NOT NULL,
-            checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_available BOOLEAN NOT NULL,
-            response_time_ms FLOAT NOT NULL,
-            error TEXT
+        CREATE TABLE IF NOT EXISTS codegen_responses (
+            challenge_id TEXT NOT NULL,
+            miner_hotkey TEXT NOT NULL,
+            response_patch TEXT NOT NULL,
+            PRIMARY KEY (challenge_id, miner_hotkey),
+            FOREIGN KEY (challenge_id, miner_hotkey) REFERENCES responses(challenge_id, miner_hotkey)
         )
-        """,
-
-        # Error Log Drain
-        """
-            CREATE TABLE IF NOT EXISTS error_logs (
-                id TEXT PRIMARY KEY,
-                timestamp TEXT,
-                filename TEXT,
-                pathname TEXT,
-                funcName TEXT,
-                lineno INTEGER,
-                message TEXT,
-                active_coroutines TEXT,
-                eval_loop_num INTEGER
-            )
         """
     ]
 

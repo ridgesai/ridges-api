@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import List
 
-from src.models.codegen_challenges import CodegenChallenge
+from src.db.models import CodegenChallenge
 
 class ReturnedResponse(BaseModel):
     miner_hotkey: str
