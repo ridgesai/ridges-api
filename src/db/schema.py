@@ -30,6 +30,18 @@ def get_schema_v1() -> List[str]:
         )
         """,
 
+        # Regression challenges table
+        """
+        CREATE TABLE IF NOT EXISTS regression_challenges (
+            challenge_id TEXT PRIMARY KEY,
+            problem_statement TEXT NOT NULL, -- Problem statement for regression challenges
+            repository_url TEXT NOT NULL,     -- URL of the repository
+            commit_hash TEXT,                 -- Optional commit hash for regression challenges
+            context_file_paths TEXT NOT NULL, -- JSON array of file paths relative to repo root
+            FOREIGN KEY (challenge_id) REFERENCES challenges(challenge_id) ON DELETE CASCADE
+        )
+        """,
+
         # Responses table
         """
         CREATE TABLE IF NOT EXISTS responses (
@@ -55,6 +67,31 @@ def get_schema_v1() -> List[str]:
             response_patch TEXT NOT NULL,
             PRIMARY KEY (challenge_id, miner_hotkey),
             FOREIGN KEY (challenge_id, miner_hotkey) REFERENCES responses(challenge_id, miner_hotkey)
+        )
+        """,
+
+        # Regression responses table
+        """
+        CREATE TABLE IF NOT EXISTS regression_responses (
+            challenge_id TEXT NOT NULL,
+            miner_hotkey TEXT NOT NULL,
+            response_patch TEXT,  -- Nullable response patch for regression responses
+            PRIMARY KEY (challenge_id, miner_hotkey),
+            FOREIGN KEY (challenge_id, miner_hotkey) REFERENCES responses(challenge_id, miner_hotkey)
+        )
+        """,
+
+        # Agents table
+        """
+        CREATE TABLE IF NOT EXISTS agents (
+            agent_id TEXT PRIMARY KEY,
+            miner_hotkey TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            type TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            elo INTEGER NOT NULL,
+            num_responses INTEGER NOT NULL DEFAULT 0
         )
         """
     ]

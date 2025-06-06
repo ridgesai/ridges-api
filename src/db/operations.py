@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 import logging
 
-from src.db.models import CodegenChallenge, CodegenResponse
+from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse
 from .schema import check_db_initialized, init_db
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,44 @@ class DatabaseManager:
             logger.error(f"Error storing codegen challenge {challenge.challenge_id}: {str(e)}")
             return 0
 
+    def store_regression_challenge(self, challenge: RegressionChallenge) -> int:
+        conn = self.get_connection()
+        try:
+            with conn:
+                cursor = conn.cursor()
+                
+                # First insert into challenges table
+                cursor.execute("""
+                    INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    challenge.challenge_id,
+                    'regression',
+                    challenge.validator_hotkey, 
+                    challenge.created_at
+                ))
+                
+                # Then insert into regression_challenges table
+                cursor.execute("""
+                    INSERT INTO regression_challenges (
+                        challenge_id, problem_statement, repository_url,
+                        commit_hash, context_file_paths
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    challenge.challenge_id,
+                    challenge.problem_statement,
+                    challenge.repository_url,
+                    challenge.commit_hash,
+                    json.dumps(challenge.context_file_paths)
+                ))
+                conn.commit()
+                logger.info(f"Stored regression challenge {challenge.challenge_id}")
+                return 1
+        except Exception as e:
+            logger.error(f"Error storing regression challenge {challenge.challenge_id}: {str(e)}")
+            return 0
+
     def store_codegen_response(self, response: CodegenResponse) -> int:
         """Store a codegen response in the database.
         
@@ -115,4 +153,50 @@ class DatabaseManager:
                 return 1
         except Exception as e:
             logger.error(f"Error storing codegen response for challenge {response.challenge_id} from miner {response.miner_hotkey}: {str(e)}")
+            return 0
+        
+    def store_regression_response(self, response: RegressionResponse) -> int:
+        """Store a regression response in the database.
+        
+        This stores the response in both the responses and regression_responses tables.
+        """
+        conn = self.get_connection()
+        try:
+            with conn:
+                cursor = conn.cursor()
+
+                # First insert into responses table
+                cursor.execute("""
+                    INSERT INTO responses (
+                        challenge_id, miner_hotkey, node_id, processing_time,
+                        received_at, completed_at, evaluated, score, evaluated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    response.challenge_id,
+                    response.miner_hotkey,
+                    response.node_id,
+                    response.processing_time,
+                    response.received_at,
+                    response.completed_at,
+                    response.evaluated,
+                    response.score,
+                    response.evaluated_at
+                ))
+
+                # Then insert into regression_responses table
+                cursor.execute("""
+                    INSERT INTO regression_responses (challenge_id, miner_hotkey, response_patch)
+                    VALUES (?, ?, ?)
+                """, (
+                    response.challenge_id,
+                    response.miner_hotkey,
+                    response.response_patch
+                ))
+
+                conn.commit()
+                logger.info(f"Stored regression response for challenge {response.challenge_id} from miner {response.miner_hotkey}")
+                return 1
+        except Exception as e:
+            logger.error(f"Error storing regression response for challenge {response.challenge_id} from miner {response.miner_hotkey}: {str(e)}")
             return 0
