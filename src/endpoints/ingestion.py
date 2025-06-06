@@ -158,13 +158,13 @@ async def post_agent (
             detail=f"type is required and must be one of {PROBLEM_TYPES}"
         )
     
-    # if provided_agent_id:
-    #     agent = db.get_agent(provided_agent_id)
-    #     if not agent:
-    #         raise HTTPException(
-    #             status_code=400,
-    #             detail=f"Agent {agent_id} not found"
-    #         )
+    if registered_agent_id:
+        agent = db.get_agent(registered_agent_id)
+        if not agent:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Agent {agent_id} not found"
+            )
     
     # Create a temporary directory for unzipping
     agent_id = uuid.uuid4() if not registered_agent_id else registered_agent_id

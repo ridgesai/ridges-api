@@ -21,13 +21,21 @@ async def get_codegen_challenge(challenge_id: str):
     if not challenge:
         raise HTTPException(
             status_code=404,
-            detail=f"Codegen challenge {challenge_id} not found"
-        )    
+            detail={
+                "status": "fail",
+                "message": f"Codegen challenge {challenge_id} not found",
+                "challenge": None,
+                "responses": []
+            }
+        )
+    
+    responses = db.get_codegen_challenge_responses(challenge_id=challenge_id)
     
     return {
         "status": "success",
         "message": f"Codegen challenge {challenge_id} retrieved successfully",
         "challenge": challenge[0],
+        "responses": responses
     }
 
 async def get_codegen_challenges():
@@ -36,7 +44,11 @@ async def get_codegen_challenges():
     if not challenges:
         raise HTTPException(
             status_code=404,
-            detail="No codegen challenges found"
+            detail={
+                "status": "fail",
+                "message": "No codegen challenges found",
+                "challenges": []
+            }
         )
     
     for challenge in challenges:

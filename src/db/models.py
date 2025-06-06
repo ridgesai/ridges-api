@@ -14,7 +14,7 @@ class CodegenChallenge(BaseModel):
     context_file_paths: str
 
 class CodegenChallengeWithResponseCount(CodegenChallenge):
-    response_count: int
+    response_count: int = 0
 
 class RegressionChallenge(BaseModel):
     challenge_id: str
@@ -38,6 +38,9 @@ class CodegenResponse(BaseModel):
     score: Optional[float] = None
     evaluated_at: Optional[datetime] = None
     response_patch: str
+
+class CodegenChallengeWithResponseList(CodegenChallenge):
+    response_list: List[CodegenResponse] = []
 
 class RegressionResponse(BaseModel):
     challenge_id: str

@@ -229,7 +229,7 @@ class DatabaseManager:
             logger.error(f"Error storing agent {agent.agent_id}: {str(e)}")
             return 0
         
-    def get_codegen_challenges(self, challenge_id: Optional[str] = None) -> List[CodegenChallengeWithResponseCount]:
+    def get_codegen_challenges(self, challenge_id: Optional[str] = None) -> List[CodegenChallenge]:
         conn = self.get_connection()
         
         with conn:
@@ -296,6 +296,36 @@ class DatabaseManager:
         with conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM codegen_responses WHERE challenge_id = ?
+                SELECT 
+                    r.challenge_id,
+                    r.miner_hotkey,
+                    r.node_id,
+                    r.processing_time,
+                    r.received_at,
+                    r.completed_at,
+                    r.evaluated,
+                    r.score,
+                    r.evaluated_at,
+                    cr.response_patch
+                FROM responses r
+                JOIN codegen_responses cr 
+                    ON r.challenge_id = cr.challenge_id 
+                    AND r.miner_hotkey = cr.miner_hotkey
+                WHERE r.challenge_id = ?
             """, (challenge_id,))
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            return [
+                CodegenResponse(
+                    challenge_id=row[0],
+                    miner_hotkey=row[1],
+                    node_id=row[2],
+                    processing_time=row[3],
+                    received_at=row[4],
+                    completed_at=row[5],
+                    evaluated=bool(row[6]),
+                    score=row[7],
+                    evaluated_at=row[8],
+                    response_patch=row[9]
+                )
+                for row in rows
+            ]
