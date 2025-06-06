@@ -2,8 +2,9 @@ import json
 import sqlite3
 from pathlib import Path
 import logging
+from typing import List, Optional
 
-from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, Agent
+from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, Agent, CodegenChallengeWithResponseCount
 from .schema import check_db_initialized, init_db
 
 logger = logging.getLogger(__name__)
@@ -227,3 +228,74 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error storing agent {agent.agent_id}: {str(e)}")
             return 0
+        
+    def get_codegen_challenges(self, challenge_id: Optional[str] = None) -> List[CodegenChallengeWithResponseCount]:
+        conn = self.get_connection()
+        
+        with conn:
+            cursor = conn.cursor()
+
+            if challenge_id:
+                cursor.execute("""
+                    SELECT 
+                        c.challenge_id,
+                        c.type,
+                        c.validator_hotkey,
+                        c.created_at,
+                        cc.problem_statement,
+                        cc.dynamic_checklist,
+                        cc.repository_url,
+                        cc.commit_hash,
+                        cc.context_file_paths
+                    FROM challenges c
+                    INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
+                    WHERE c.challenge_id = ? AND c.type = 'codegen'
+                """, (challenge_id,))
+            else:
+                cursor.execute("""
+                    SELECT 
+                        c.challenge_id,
+                        c.type,
+                        c.validator_hotkey,
+                        c.created_at,
+                        cc.problem_statement,
+                        cc.dynamic_checklist,
+                        cc.repository_url,
+                        cc.commit_hash,
+                        cc.context_file_paths
+                    FROM challenges c
+                    INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
+                    WHERE c.type = 'codegen'
+                """)
+            
+            rows = cursor.fetchall()
+            if not rows:
+                return []
+            
+            # Convert rows to dictionaries and parse JSON fields
+            results = []
+            for row in rows:
+                result = {
+                    'challenge_id': row[0],
+                    'type': row[1],
+                    'validator_hotkey': row[2],
+                    'created_at': row[3],
+                    'problem_statement': row[4],
+                    'dynamic_checklist': json.loads(row[5]),
+                    'repository_url': row[6],
+                    'commit_hash': row[7],
+                    'context_file_paths': json.loads(row[8]),
+                    'response_count': 0
+                }
+                results.append(result)
+            
+            return results
+        
+    def get_codegen_challenge_responses(self, challenge_id: str) -> List[CodegenResponse]:
+        conn = self.get_connection()
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM codegen_responses WHERE challenge_id = ?
+            """, (challenge_id,))
+            return cursor.fetchall()

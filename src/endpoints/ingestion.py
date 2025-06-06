@@ -248,7 +248,7 @@ async def post_agent (
             elo=elo,
             num_responses=num_responses
         )
-    # db.add_agent(agent)
+    db.store_agent(agent)
 
     if temp_dir.exists():
         shutil.rmtree(temp_dir)

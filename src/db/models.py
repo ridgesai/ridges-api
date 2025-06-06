@@ -13,6 +13,9 @@ class CodegenChallenge(BaseModel):
     commit_hash: Optional[str]
     context_file_paths: str
 
+class CodegenChallengeWithResponseCount(CodegenChallenge):
+    response_count: int
+
 class RegressionChallenge(BaseModel):
     challenge_id: str
     type: str
