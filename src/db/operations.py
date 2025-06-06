@@ -291,29 +291,51 @@ class DatabaseManager:
             
             return results
         
-    def get_codegen_challenge_responses(self, challenge_id: str) -> List[CodegenResponse]:
+    def get_codegen_challenge_responses(self, challenge_id: str = None) -> List[CodegenResponse]:
         conn = self.get_connection()
         with conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    r.challenge_id,
-                    r.miner_hotkey,
-                    r.node_id,
-                    r.processing_time,
-                    r.received_at,
-                    r.completed_at,
-                    r.evaluated,
-                    r.score,
-                    r.evaluated_at,
-                    cr.response_patch
-                FROM responses r
-                JOIN codegen_responses cr 
-                    ON r.challenge_id = cr.challenge_id 
-                    AND r.miner_hotkey = cr.miner_hotkey
-                WHERE r.challenge_id = ?
-            """, (challenge_id,))
+            if challenge_id:
+                cursor.execute("""
+                    SELECT 
+                        r.challenge_id,
+                        r.miner_hotkey,
+                        r.node_id,
+                        r.processing_time,
+                        r.received_at,
+                        r.completed_at,
+                        r.evaluated,
+                        r.score,
+                        r.evaluated_at,
+                        cr.response_patch
+                    FROM responses r
+                    JOIN codegen_responses cr 
+                        ON r.challenge_id = cr.challenge_id 
+                        AND r.miner_hotkey = cr.miner_hotkey
+                    WHERE r.challenge_id = ?
+                """, (challenge_id,))
+            else:
+                cursor.execute("""
+                    SELECT 
+                        r.challenge_id,
+                        r.miner_hotkey,
+                        r.node_id,
+                        r.processing_time,
+                        r.received_at,
+                        r.completed_at,
+                        r.evaluated,
+                        r.score,
+                        r.evaluated_at,
+                        cr.response_patch
+                    FROM responses r
+                    JOIN codegen_responses cr 
+                        ON r.challenge_id = cr.challenge_id 
+                        AND r.miner_hotkey = cr.miner_hotkey
+                """)
             rows = cursor.fetchall()
+            if not rows:
+                return []
+            
             return [
                 CodegenResponse(
                     challenge_id=row[0],
@@ -322,7 +344,7 @@ class DatabaseManager:
                     processing_time=row[3],
                     received_at=row[4],
                     completed_at=row[5],
-                    evaluated=bool(row[6]),
+                    evaluated=row[6],
                     score=row[7],
                     evaluated_at=row[8],
                     response_patch=row[9]
