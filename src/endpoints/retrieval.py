@@ -102,15 +102,15 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
     
     miners = [{"miner_hotkey": hotkey, "response_count": len(responses), "responses": responses} for hotkey, responses in miner_responses.items() if len(responses) >= min_response_count]
 
-    if sort_by_score:
-        for miner in miners:
-            scores = [response.score for response in miner["responses"]]
-            miner["average_score"] = sum(scores) / len(scores)
-        
-        miners.sort(key=lambda x: x["average_score"], reverse=True)
-
+    for miner in miners:
+        scores = [response.score for response in miner["responses"] if response.score is not None]
+        miner["average_score"] = sum(scores) / len(scores) if scores else 0
+    
     if min_score:
-        miners = [miner for miner in miners if miner["average_score"] >= min_score]
+        miners = [miner for miner in miners if miner.get("average_score", 0) >= min_score]
+
+    if sort_by_score:
+        miners.sort(key=lambda x: x.get("average_score", 0), reverse=True)
 
     miners = miners[:max_miners]
 
