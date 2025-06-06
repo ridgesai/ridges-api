@@ -34,8 +34,19 @@ async def get_codegen_challenge(challenge_id: str):
         "responses": responses
     }
 
-async def get_codegen_challenges():
-    challenges = db.get_codegen_challenges()
+async def get_codegen_challenges(max_challenges: int = 5):
+    if max_challenges > 150:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "fail",
+                "message": "Max challenges must be less than 150",
+                "challenge_count": 0,
+                "challenges": []
+            }
+        )
+
+    challenges = db.get_codegen_challenges(max_challenges=max_challenges)
 
     if not challenges:
         raise HTTPException(
@@ -43,6 +54,7 @@ async def get_codegen_challenges():
             detail={
                 "status": "fail",
                 "message": "No codegen challenges found",
+                "challenge_count": 0,
                 "challenges": []
             }
         )
@@ -52,11 +64,23 @@ async def get_codegen_challenges():
 
     return {
         "status": "success",
-        "message": "Codegen challenges retrieved successfully",
+        "message": f"Codegen challenges retrieved successfully",
+        "challenge_count": len(challenges),
         "challenges": challenges,
     }
 
-async def get_miner_responses(min_score: Optional[float] = 0, min_response_count: Optional[int] = 0, sort_by_score: Optional[bool] = False):
+async def get_miner_responses(min_score: float = 0, min_response_count: int = 0, sort_by_score: bool = False, max_miners: int = 5):
+    if max_miners > 150:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "fail",
+                "message": "Max miners must be less than 150",
+                "miner_count": 0,
+                "miners": []
+            }
+        )
+
     responses = db.get_codegen_challenge_responses()
 
     if not responses:
@@ -88,9 +112,12 @@ async def get_miner_responses(min_score: Optional[float] = 0, min_response_count
     if min_score:
         miners = [miner for miner in miners if miner["average_score"] >= min_score]
 
+    miners = miners[:max_miners]
+
     return {
         "status": "success",
         "message": "Miner responses retrieved successfully" if miners else "No miner responses found with the given parameters",
+        "miner_count": len(miners),
         "miners": miners
     }
 

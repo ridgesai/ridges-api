@@ -229,7 +229,7 @@ class DatabaseManager:
             logger.error(f"Error storing agent {agent.agent_id}: {str(e)}")
             return 0
         
-    def get_codegen_challenges(self, challenge_id: Optional[str] = None) -> List[CodegenChallenge]:
+    def get_codegen_challenges(self, challenge_id: Optional[str] = None, max_challenges: int = 5) -> List[CodegenChallenge]:
         conn = self.get_connection()
         
         with conn:
@@ -266,7 +266,8 @@ class DatabaseManager:
                     FROM challenges c
                     INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
                     WHERE c.type = 'codegen'
-                """)
+                    LIMIT ?
+                """, (max_challenges,))
             
             rows = cursor.fetchall()
             if not rows:
