@@ -1,11 +1,16 @@
-from typing import List
+from typing import List, Optional
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 import logging
+import zipfile
+import tempfile
+import shutil
 
 from src.utils.auth import verify_request
-from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse
+from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent
 from src.db.operations import DatabaseManager
+
+from src.utils.config import PROBLEM_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +128,38 @@ async def post_regression_responses(data: List[RegressionResponse]):
         "message": f"Successfully stored {details['total_stored_regression_responses']} of {details['total_sent_regression_responses']} regression responses. {details['total_unstored_regression_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations",
     }
 
+async def post_agent (
+    zip_file: UploadFile = File(...),
+    miner_hotkey: str = None,
+    type: str = None,
+    agent_id: Optional[str] = None,
+):
+    # Check if file is a zip file
+    if not zip_file.filename.endswith('.zip'):
+        raise HTTPException(
+            status_code=400,
+            detail="File must be a zip file"
+        )
+
+    # Check if miner_hotkey is provided
+    if not miner_hotkey:
+        raise HTTPException(
+            status_code=400,
+            detail="miner_hotkey is required"
+        )
+
+    # Check if type is provided and is valid
+    if not type or type not in PROBLEM_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"type is required and must be one of {PROBLEM_TYPES}"
+        )
+    
+    return {
+        "status": "success",
+    }
+
+
 router = APIRouter()
 
 routes = [
@@ -130,6 +167,7 @@ routes = [
     ("/regression-challenges", post_regression_challenges),
     ("/codegen-responses", post_codegen_responses),
     ("/regression-responses", post_regression_responses),
+    ("/agents", post_agent),
 ]
 
 for path, endpoint in routes:

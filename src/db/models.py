@@ -47,3 +47,13 @@ class RegressionResponse(BaseModel):
     score: Optional[float] = None
     evaluated_at: Optional[datetime] = None
     response_patch: str
+
+class Agent(BaseModel):
+    agent_id: str
+    miner_hotkey: str
+    created_at: datetime
+    last_updated: datetime
+    type: str
+    version: int
+    elo: int
+    num_responses: int
