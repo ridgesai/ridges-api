@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 import logging
 
-from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse
+from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, Agent
 from .schema import check_db_initialized, init_db
 
 logger = logging.getLogger(__name__)
@@ -199,4 +199,31 @@ class DatabaseManager:
                 return 1
         except Exception as e:
             logger.error(f"Error storing regression response for challenge {response.challenge_id} from miner {response.miner_hotkey}: {str(e)}")
+            return 0
+
+    def store_agent(self, agent: Agent) -> int:
+        conn = self.get_connection()
+        try:
+            with conn:
+                cursor = conn.cursor()
+                
+                # First insert into agents table
+                cursor.execute("""
+                    INSERT INTO agents (agent_id, miner_hotkey, created_at, last_updated, type, version, elo, num_responses)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    agent.agent_id,
+                    agent.miner_hotkey,
+                    agent.created_at,
+                    agent.last_updated,
+                    agent.type,
+                    agent.version,
+                    agent.elo,
+                    agent.num_responses
+                ))
+                conn.commit()
+                logger.info(f"Stored agent {agent.agent_id}")
+                return 1
+        except Exception as e:
+            logger.error(f"Error storing agent {agent.agent_id}: {str(e)}")
             return 0
