@@ -100,6 +100,7 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
     miner_responses = {}
     for response in responses:
         miner_hotkey = response.miner_hotkey
+        response.processing_time = (response.completed_at - response.received_at).total_seconds()
         if miner_hotkey not in miner_responses:
             miner_responses[miner_hotkey] = []
         miner_responses[miner_hotkey].append(response)
