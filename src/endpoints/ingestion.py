@@ -78,29 +78,29 @@ async def post_regression_challenges(data: List[RegressionChallenge]):
 async def post_codegen_responses(data: List[CodegenResponse]):
     details = {
         "total_sent_codegen_responses": len(data),
-        "total_stored_codegen_responses": 0,
-        "total_unstored_codegen_responses": 0,
-        "list_of_stored_codegen_responses": [],
-        "list_of_unstored_codegen_responses": [],
+        "total_new_codegen_responses": 0,
+        "total_updated_codegen_responses": 0,
+        "list_of_new_codegen_responses": [],
+        "list_of_updated_codegen_responses": [],
     }
 
     for response in data:
         result = db.store_codegen_response(response)
         if result == 0:
-            details["total_unstored_codegen_responses"] += 1
-            details["list_of_unstored_codegen_responses"].append(response.challenge_id + "-" + response.miner_hotkey)
+            details["total_new_codegen_responses"] += 1
+            details["list_of_new_codegen_responses"].append(response.challenge_id + "-" + response.miner_hotkey)
         else:
-            details["total_stored_codegen_responses"] += 1
-            details["list_of_stored_codegen_responses"].append(response.challenge_id + "-" + response.miner_hotkey)
+            details["total_updated_codegen_responses"] += 1
+            details["list_of_updated_codegen_responses"].append(response.challenge_id + "-" + response.miner_hotkey)
 
-    logger.info(f"Successfully stored {details['total_stored_codegen_responses']} of {details['total_sent_codegen_responses']} codegen responses. {details['total_unstored_codegen_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations")
-    logger.info(f"List of stored codegen responses: {details['list_of_stored_codegen_responses']}")
-    logger.info(f"List of unstored codegen responses: {details['list_of_unstored_codegen_responses']}")
+    logger.info(f"Successfully stored {details['total_new_codegen_responses']} of {details['total_sent_codegen_responses']} codegen responses. {details['total_updated_codegen_responses']} responses were updated due to duplicate challenge id / miner hotkey combinations")
+    logger.info(f"List of new codegen responses: {details['list_of_new_codegen_responses']}")
+    logger.info(f"List of updated codegen responses: {details['list_of_updated_codegen_responses']}")
 
     return {
         "status": "success",
         "details": details,
-        "message": f"Successfully stored {details['total_stored_codegen_responses']} of {details['total_sent_codegen_responses']} codegen responses. {details['total_unstored_codegen_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations",
+        "message": f"Successfully uploaded {details['total_new_codegen_responses']} new codegen responses and updated {details['total_updated_codegen_responses']} existing codegen responses",
     }
 
 async def post_regression_responses(data: List[RegressionResponse]):
@@ -196,7 +196,7 @@ async def post_agent (
             for file_info in file_list:
                 if total_size + file_info.file_size > max_size:
                     raise HTTPException(
-                        status_code=400,
+                        status_code=413,
                         detail="Unzipped content would exceed 1MB limit. Please reduce the size of the zip file."
                     )
                 

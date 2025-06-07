@@ -114,19 +114,23 @@ class DatabaseManager:
         """Store a codegen response in the database.
         
         This stores the response in both the responses and codegen_responses tables.
+        On conflict, only updates evaluation-related fields (evaluated, score, evaluated_at).
         """
         conn = self.get_connection()
         try:
             with conn:
                 cursor = conn.cursor()
                 
-                # First insert into responses table
                 cursor.execute("""
                     INSERT INTO responses (
                         challenge_id, miner_hotkey, node_id, processing_time,
                         received_at, completed_at, evaluated, score, evaluated_at
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(challenge_id, miner_hotkey) DO UPDATE SET
+                        evaluated = excluded.evaluated,
+                        score = excluded.score,
+                        evaluated_at = excluded.evaluated_at
                 """, (
                     response.challenge_id,
                     response.miner_hotkey,
@@ -139,10 +143,10 @@ class DatabaseManager:
                     response.evaluated_at
                 ))
                 
-                # Then insert into codegen_responses table
                 cursor.execute("""
                     INSERT INTO codegen_responses (challenge_id, miner_hotkey, response_patch)
                     VALUES (?, ?, ?)
+                    ON CONFLICT(challenge_id, miner_hotkey) DO NOTHING
                 """, (
                     response.challenge_id,
                     response.miner_hotkey,
@@ -229,7 +233,7 @@ class DatabaseManager:
             logger.error(f"Error storing agent {agent.agent_id}: {str(e)}")
             return 0
         
-    def get_codegen_challenges(self, challenge_id: Optional[str] = None, max_challenges: int = 5) -> List[CodegenChallenge]:
+    def get_codegen_challenges(self, challenge_id: str = None) -> List[CodegenChallenge]:
         conn = self.get_connection()
         
         with conn:
@@ -266,8 +270,7 @@ class DatabaseManager:
                     FROM challenges c
                     INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
                     WHERE c.type = 'codegen'
-                    LIMIT ?
-                """, (max_challenges,))
+                """)
             
             rows = cursor.fetchall()
             if not rows:
@@ -313,7 +316,7 @@ class DatabaseManager:
                     JOIN codegen_responses cr 
                         ON r.challenge_id = cr.challenge_id 
                         AND r.miner_hotkey = cr.miner_hotkey
-                    WHERE r.challenge_id = ?
+                    WHERE r.challenge_id = ? AND r.evaluated = 1
                 """, (challenge_id,))
             else:
                 cursor.execute("""
@@ -332,6 +335,7 @@ class DatabaseManager:
                     JOIN codegen_responses cr 
                         ON r.challenge_id = cr.challenge_id 
                         AND r.miner_hotkey = cr.miner_hotkey
+                    WHERE r.evaluated = 1
                 """)
             rows = cursor.fetchall()
             if not rows:

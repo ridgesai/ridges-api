@@ -46,7 +46,7 @@ async def get_codegen_challenges(max_challenges: int = 5):
             }
         )
 
-    challenges = db.get_codegen_challenges(max_challenges=max_challenges)
+    challenges = db.get_codegen_challenges()
 
     if not challenges:
         raise HTTPException(
@@ -61,6 +61,10 @@ async def get_codegen_challenges(max_challenges: int = 5):
     
     for challenge in challenges:
         challenge["response_count"] = len(db.get_codegen_challenge_responses(challenge_id=challenge["challenge_id"]))
+
+    challenges = [challenge for challenge in challenges if challenge["response_count"] > 0]
+    challenges.sort(key=lambda x: x["created_at"], reverse=True)
+    challenges = challenges[:max_challenges]
 
     return {
         "status": "success",
@@ -88,7 +92,7 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
             status_code=404,
             detail={
                 "status": "fail",
-                "message": "No miner responses found",
+                "message": "No graded miner responses found",
                 "miners": []
             }
         )
@@ -116,7 +120,7 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
 
     return {
         "status": "success",
-        "message": "Miner responses retrieved successfully" if miners else "No miner responses found with the given parameters",
+        "message": "Graded miner responses retrieved successfully" if miners else "No graded miner responses found with the given parameters",
         "miner_count": len(miners),
         "miners": miners
     }
