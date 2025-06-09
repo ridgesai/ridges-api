@@ -240,14 +240,13 @@ class DatabaseManager:
             with conn:
                 with conn.cursor() as cursor:
                     cursor.execute("""
-                        INSERT INTO scores (type, validator_hotkey, miner_hotkey, score, created_at)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO scores (type, validator_hotkey, miner_hotkey, score)
+                        VALUES (%s, %s, %s, %s)
                     """, (
                         score.type,
                         score.validator_hotkey,
                         score.miner_hotkey,
                         score.score,
-                        score.created_at
                     ))
                 conn.commit()
             return 1
