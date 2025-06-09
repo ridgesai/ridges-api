@@ -62,3 +62,10 @@ class ValidatorVersion(BaseModel):
     validator_hotkey: str
     version: str
     timestamp: datetime
+
+class Score(BaseModel):
+    type: str
+    validator_hotkey: str
+    miner_hotkey: str
+    score: float
+    created_at: datetime
