@@ -13,9 +13,6 @@ class CodegenChallenge(BaseModel):
     commit_hash: Optional[str]
     context_file_paths: str
 
-class CodegenChallengeWithResponseCount(CodegenChallenge):
-    response_count: int = 0
-
 class RegressionChallenge(BaseModel):
     challenge_id: str
     type: str
@@ -39,9 +36,6 @@ class CodegenResponse(BaseModel):
     evaluated_at: Optional[datetime] = None
     response_patch: str
 
-class CodegenChallengeWithResponseList(CodegenChallenge):
-    response_list: List[CodegenResponse] = []
-
 class RegressionResponse(BaseModel):
     challenge_id: str
     miner_hotkey: str
@@ -63,3 +57,8 @@ class Agent(BaseModel):
     version: int
     elo: int
     num_responses: int
+
+class ValidatorVersion(BaseModel):
+    validator_hotkey: str
+    version: str
+    timestamp: datetime

@@ -10,7 +10,7 @@ import shutil
 from datetime import datetime
 
 from src.utils.auth import verify_request
-from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent
+from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion
 from src.db.operations import DatabaseManager
 
 from src.utils.config import PROBLEM_TYPES
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 db = DatabaseManager(Path("platform.db"))
 
-async def post_codegen_challenges(data: List[CodegenChallenge]):
+async def post_codegen_challenges(data: List[CodegenChallenge], validator_hotkey: str = "LEGACY VALIDATOR", version: str = "LEGACY"):
     details = {
         "total_sent_codegen_challenges": len(data),
         "total_stored_codegen_challenges": 0,
@@ -41,13 +41,21 @@ async def post_codegen_challenges(data: List[CodegenChallenge]):
     logger.info(f"List of stored codegen challenges: {details['list_of_stored_codegen_challenges']}")
     logger.info(f"List of unstored codegen challenges: {details['list_of_unstored_codegen_challenges']}")
 
+    val_hotkey = data[0].validator_hotkey if data[0].validator_hotkey else validator_hotkey
+    validator_version_object = ValidatorVersion(
+        validator_hotkey=val_hotkey,
+        version=version,
+        timestamp=datetime.now()
+    )
+    db.store_validator_version(validator_version_object)
+
     return {
         "status": "success",
         "details": details,
         "message": f"Successfully stored {details['total_stored_codegen_challenges']} of {details['total_sent_codegen_challenges']} codegen challenges. {details['total_unstored_codegen_challenges']} challenges were not stored due to duplicate challenge ids",
     }
 
-async def post_regression_challenges(data: List[RegressionChallenge]):
+async def post_regression_challenges(data: List[RegressionChallenge], validator_hotkey: str = "LEGACY VALIDATOR", version: str = "LEGACY"):
     details = {
         "total_sent_regression_challenges": len(data),
         "total_stored_regression_challenges": 0,
@@ -69,13 +77,21 @@ async def post_regression_challenges(data: List[RegressionChallenge]):
     logger.info(f"List of stored regression challenges: {details['list_of_stored_regression_challenges']}")
     logger.info(f"List of unstored regression challenges: {details['list_of_unstored_regression_challenges']}")
 
+    val_hotkey = data[0].validator_hotkey if data[0].validator_hotkey else validator_hotkey
+    validator_version_object = ValidatorVersion(
+        validator_hotkey=val_hotkey,
+        version=version,
+        timestamp=datetime.now()
+    )
+    db.store_validator_version(validator_version_object)
+
     return {
         "status": "success",
         "details": details,
         "message": f"Successfully stored {details['total_stored_regression_challenges']} of {details['total_sent_regression_challenges']} regression challenges. {details['total_unstored_regression_challenges']} challenges were not stored due to duplicate challenge ids",
     }
 
-async def post_codegen_responses(data: List[CodegenResponse]):
+async def post_codegen_responses(data: List[CodegenResponse], validator_hotkey: str = "LEGACY VALIDATOR", version: str = "LEGACY"):
     details = {
         "total_sent_codegen_responses": len(data),
         "total_new_codegen_responses": 0,
@@ -97,13 +113,20 @@ async def post_codegen_responses(data: List[CodegenResponse]):
     logger.info(f"List of new codegen responses: {details['list_of_new_codegen_responses']}")
     logger.info(f"List of updated codegen responses: {details['list_of_updated_codegen_responses']}")
 
+    validator_version_object = ValidatorVersion(
+        validator_hotkey=validator_hotkey,
+        version=version,
+        timestamp=datetime.now()
+    )
+    db.store_validator_version(validator_version_object)
+
     return {
         "status": "success",
         "details": details,
         "message": f"Successfully uploaded {details['total_new_codegen_responses']} new codegen responses and updated {details['total_updated_codegen_responses']} existing codegen responses",
     }
 
-async def post_regression_responses(data: List[RegressionResponse]):
+async def post_regression_responses(data: List[RegressionResponse], validator_hotkey = "LEGACY VALIDATOR", version: str = "LEGACY"):
     details = {
         "total_sent_regression_responses": len(data),
         "total_stored_regression_responses": 0,
@@ -124,6 +147,13 @@ async def post_regression_responses(data: List[RegressionResponse]):
     logger.info(f"Successfully stored {details['total_stored_regression_responses']} of {details['total_sent_regression_responses']} regression responses. {details['total_unstored_regression_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations")
     logger.info(f"List of stored regression responses: {details['list_of_stored_regression_responses']}")
     logger.info(f"List of unstored regression responses: {details['list_of_unstored_regression_responses']}")
+
+    validator_version_object = ValidatorVersion(
+        validator_hotkey=validator_hotkey,
+        version=version,
+        timestamp=datetime.now()
+    )
+    db.store_validator_version(validator_version_object)
 
     return {
         "status": "success",

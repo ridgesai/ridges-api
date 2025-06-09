@@ -4,7 +4,7 @@ from pathlib import Path
 import logging
 from typing import List, Optional
 
-from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, Agent, CodegenChallengeWithResponseCount
+from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, Agent, ValidatorVersion
 from .schema import check_db_initialized, init_db
 
 logger = logging.getLogger(__name__)
@@ -356,3 +356,19 @@ class DatabaseManager:
                 )
                 for row in rows
             ]
+        
+    def store_validator_version(self, validator_version: ValidatorVersion) -> int:
+        conn = self.get_connection()
+        try:
+            with conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO validator_versions (validator_hotkey, version, timestamp)
+                    VALUES (?, ?, ?)
+                """, (validator_version.validator_hotkey, validator_version.version, validator_version.timestamp))
+                conn.commit()
+                logger.info(f"Stored validator version {validator_version.version} for validator {validator_version.validator_hotkey}")
+                return 1
+        except Exception as e:
+            logger.error(f"Error storing validator version {validator_version.version} for validator {validator_version.validator_hotkey}: {str(e)}")
+            return 0

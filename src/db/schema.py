@@ -93,6 +93,16 @@ def get_schema_v1() -> List[str]:
             elo INTEGER NOT NULL,
             num_responses INTEGER NOT NULL DEFAULT 0
         )
+        """,
+
+        # Validator versions table
+        """
+        CREATE TABLE IF NOT EXISTS validator_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            validator_hotkey TEXT NOT NULL,
+            version TEXT NOT NULL,
+            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
         """
     ]
 
