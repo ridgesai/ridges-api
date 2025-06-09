@@ -282,7 +282,7 @@ class DatabaseManager:
             return 0
 
     def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
-        """Retrieve codegen challenges from the database (AWS Postgres RDS).
+        """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
         Returns a list of dicts matching the original output format.
         """
         conn = self.get_connection()
@@ -300,10 +300,16 @@ class DatabaseManager:
                                 cc.dynamic_checklist,
                                 cc.repository_url,
                                 cc.commit_hash,
-                                cc.context_file_paths
+                                cc.context_file_paths,
+                                COUNT(r.challenge_id) AS response_count
                             FROM challenges c
                             INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
+                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE
                             WHERE c.challenge_id = %s AND c.type = 'codegen'
+                            GROUP BY
+                                c.challenge_id, c.type, c.validator_hotkey, c.created_at,
+                                cc.problem_statement, cc.dynamic_checklist, cc.repository_url,
+                                cc.commit_hash, cc.context_file_paths
                         """, (challenge_id,))
                     else:
                         cursor.execute("""
@@ -316,10 +322,16 @@ class DatabaseManager:
                                 cc.dynamic_checklist,
                                 cc.repository_url,
                                 cc.commit_hash,
-                                cc.context_file_paths
+                                cc.context_file_paths,
+                                COUNT(r.challenge_id) AS response_count
                             FROM challenges c
                             INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
+                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE
                             WHERE c.type = 'codegen'
+                            GROUP BY
+                                c.challenge_id, c.type, c.validator_hotkey, c.created_at,
+                                cc.problem_statement, cc.dynamic_checklist, cc.repository_url,
+                                cc.commit_hash, cc.context_file_paths
                         """)
                     rows = cursor.fetchall()
                     if not rows:
@@ -336,7 +348,7 @@ class DatabaseManager:
                             'repository_url': row[6],
                             'commit_hash': row[7],
                             'context_file_paths': json.loads(row[8]) if row[8] else None,
-                            'response_count': 0
+                            'response_count': row[9]
                         }
                         results.append(result)
                     return results

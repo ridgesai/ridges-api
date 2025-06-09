@@ -25,7 +25,6 @@ async def get_codegen_challenge(challenge_id: str):
         )
     
     responses = db.get_codegen_challenge_responses(challenge_id=challenge_id)
-    challenge[0]["response_count"] = len(responses)
     
     return {
         "status": "success",
@@ -58,9 +57,6 @@ async def get_codegen_challenges(max_challenges: int = 5):
                 "challenges": []
             }
         )
-    
-    for challenge in challenges:
-        challenge["response_count"] = len(db.get_codegen_challenge_responses(challenge_id=challenge["challenge_id"]))
 
     challenges = [challenge for challenge in challenges if challenge["response_count"] > 0]
     challenges.sort(key=lambda x: x["created_at"], reverse=True)
