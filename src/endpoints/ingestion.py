@@ -10,14 +10,14 @@ import shutil
 from datetime import datetime
 
 from src.utils.auth import verify_request
-from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion
-from src.db.operations import DatabaseManager
+from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
+from src.db.operations_new import DatabaseManager
 
 from src.utils.config import PROBLEM_TYPES
 
 logger = logging.getLogger(__name__)
 
-db = DatabaseManager(Path("platform.db"))
+db = DatabaseManager()
 
 async def post_codegen_challenges(data: List[CodegenChallenge], validator_hotkey: str = "LEGACY VALIDATOR", validator_version: str = "LEGACY"):
     details = {
@@ -299,6 +299,19 @@ async def post_agent (
         "status": "success",
         "message": f"Agent {str(agent_id)} stored successfully",
     }
+ 
+async def post_scores(data: Score):
+    result = db.store_score(data)
+    if result == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Failed to store score"
+        )
+    
+    return {
+        "status": "success",
+        "message": "Score stored successfully",
+    }
 
 router = APIRouter()
 
@@ -307,6 +320,7 @@ routes = [
     ("/regression-challenges", post_regression_challenges),
     ("/codegen-responses", post_codegen_responses),
     ("/regression-responses", post_regression_responses),
+    ("/scores", post_scores),
     ("/agents", post_agent),
 ]
 

@@ -4,11 +4,11 @@ import logging
 from typing import Optional
 
 from src.utils.auth import verify_request
-from src.db.operations import DatabaseManager
+from src.db.operations_new import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
-db = DatabaseManager(Path("platform.db"))
+db = DatabaseManager()
 
 async def get_codegen_challenge(challenge_id: str):
     challenge = db.get_codegen_challenges(challenge_id=challenge_id)
