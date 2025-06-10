@@ -352,6 +352,9 @@ class DatabaseManager:
                         }
                         results.append(result)
                     return results
+        except Exception as e:
+            print(f"Error getting codegen challenges: {str(e)}")
+            return []
         finally:
             conn.close()
 
