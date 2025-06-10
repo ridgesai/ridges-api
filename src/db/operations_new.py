@@ -284,6 +284,7 @@ class DatabaseManager:
     def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
         """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
         Returns a list of dicts matching the original output format.
+        response_count only includes responses where evaluated is TRUE and score is not NULL.
         """
         conn = self.get_connection()
         try:
@@ -304,7 +305,7 @@ class DatabaseManager:
                                 COUNT(r.challenge_id) AS response_count
                             FROM challenges c
                             INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
-                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE
+                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE AND r.score IS NOT NULL
                             WHERE c.challenge_id = %s AND c.type = 'codegen'
                             GROUP BY
                                 c.challenge_id, c.type, c.validator_hotkey, c.created_at,
@@ -326,7 +327,7 @@ class DatabaseManager:
                                 COUNT(r.challenge_id) AS response_count
                             FROM challenges c
                             INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
-                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE
+                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE AND r.score IS NOT NULL
                             WHERE c.type = 'codegen'
                             GROUP BY
                                 c.challenge_id, c.type, c.validator_hotkey, c.created_at,
@@ -361,6 +362,7 @@ class DatabaseManager:
     def get_codegen_challenge_responses(self, challenge_id: str = None) -> List[CodegenResponse]:
         """Retrieve codegen responses from the database (AWS Postgres RDS).
         Returns a list of CodegenResponse objects matching the original output format.
+        Only includes responses where evaluated is TRUE and score is not NULL.
         """
         conn = self.get_connection()
         try:
@@ -383,7 +385,7 @@ class DatabaseManager:
                             JOIN codegen_responses cr 
                                 ON r.challenge_id = cr.challenge_id 
                                 AND r.miner_hotkey = cr.miner_hotkey
-                            WHERE r.challenge_id = %s AND r.evaluated = TRUE
+                            WHERE r.challenge_id = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
                         """, (challenge_id,))
                     else:
                         cursor.execute("""
@@ -402,7 +404,7 @@ class DatabaseManager:
                             JOIN codegen_responses cr 
                                 ON r.challenge_id = cr.challenge_id 
                                 AND r.miner_hotkey = cr.miner_hotkey
-                            WHERE r.evaluated = TRUE
+                            WHERE r.evaluated = TRUE AND r.score IS NOT NULL
                         """)
                     rows = cursor.fetchall()
                     if not rows:
