@@ -7,7 +7,7 @@ import uuid
 import asyncio
 import subprocess
 import shutil
-from datetime import datetime=
+from datetime import datetime
 from src.utils.auth import verify_request
 from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
 from src.db.operations import DatabaseManager
