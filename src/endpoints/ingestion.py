@@ -1,20 +1,24 @@
 from typing import List, Optional, Union
-from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 import logging
-import zipfile
 import uuid
-import asyncio
-import subprocess
-import shutil
 from datetime import datetime
+import boto3
+import os
+import ast
+import sys
+from dotenv import load_dotenv
+
+from src.utils.config import PROBLEM_TYPES, PERMISSABLE_PACKAGES
 from src.utils.auth import verify_request
 from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
 from src.db.operations import DatabaseManager
 
-from src.utils.config import PROBLEM_TYPES
-
 logger = logging.getLogger(__name__)
+
+load_dotenv()
+s3_bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
+print(s3_bucket_name)
 
 db = DatabaseManager()
 
@@ -173,18 +177,85 @@ async def post_regression_responses(data: List[RegressionResponse], validator_ho
     }
 
 async def post_agent (
-    zip_file: UploadFile = File(...),
+    agent_file: UploadFile = File(...),
     miner_hotkey: str = None,
     type: str = None,
     registered_agent_id: Optional[str] = None,
 ):
-    # Check if file is a zip file
-    if not zip_file.filename.endswith('.zip'):
+    # Check filename
+    if agent_file.filename != "agent.py":
         raise HTTPException(
             status_code=400,
-            detail="File must be a zip file"
+            detail="File must be a python file named agent.py"
         )
+    
+    # Check file size
+    MAX_FILE_SIZE = 1 * 1024 * 1024  # 1MB in bytes
+    file_size = 0
+    content = b""
+    for chunk in agent_file.file:
+        file_size += len(chunk)
+        content += chunk
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail="File size must not exceed 1MB"
+            )
+    # Reset file pointer
+    await agent_file.seek(0)
+    
+    try:
+        # Parse the file content
+        tree = ast.parse(content.decode('utf-8'))
+        
+        # Check for if __name__ == "__main__"
+        has_main_check = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.If):
+                if isinstance(node.test, ast.Compare):
+                    if isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__":
+                        if len(node.test.ops) == 1 and isinstance(node.test.ops[0], ast.Eq):
+                            if isinstance(node.test.comparators[0], ast.Constant) and node.test.comparators[0].value == "__main__":
+                                has_main_check = True
+                                break
+        
+        if not has_main_check:
+            raise HTTPException(
+                status_code=400,
+                detail='File must contain "if __name__ == "__main__":"'
+            )
+        
+        # Check imports
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    # Allow standard library packages (those that don't need pip install) and approved packages
+                    if name.name in sys.stdlib_module_names or name.name in PERMISSABLE_PACKAGES:
+                        continue
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Import '{name.name}' is not allowed. Only standard library and approved packages are permitted."
+                    )
+            elif isinstance(node, ast.ImportFrom):
+                # Allow standard library packages (those that don't need pip install) and approved packages
+                if node.module in sys.stdlib_module_names or node.module in PERMISSABLE_PACKAGES:
+                    continue
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Import from '{node.module}' is not allowed. Only standard library and approved packages are permitted."
+                )
 
+    except SyntaxError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Python syntax: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error validating the agent file: {str(e)}"
+        )
+    
     # Check if miner_hotkey is provided
     if not miner_hotkey:
         raise HTTPException(
@@ -199,104 +270,51 @@ async def post_agent (
             detail=f"type is required and must be one of {PROBLEM_TYPES}"
         )
     
+    existing_agent = None
     if registered_agent_id:
-        agent = db.get_agent(registered_agent_id)
-        if not agent:
+        existing_agent = db.get_agent(registered_agent_id)
+        if not existing_agent:
             raise HTTPException(
                 status_code=400,
-                detail=f"Agent {agent_id} not found"
+                detail=f"Agent {registered_agent_id} not found"
             )
+        
+    agent_id = str(uuid.uuid4()) if not registered_agent_id else registered_agent_id
     
-    # Create a temporary directory for unzipping
-    agent_id = uuid.uuid4() if not registered_agent_id else registered_agent_id
-    temp_dir = Path(f"agent_{agent_id}")
-    temp_dir.mkdir(exist_ok=True)
-
-    async def process_zip():
-        content = await zip_file.read()
-        temp_zip = temp_dir / "agent.zip"
-        with open(temp_zip, "wb") as f:
-            f.write(content)
-        
-        src_dir = temp_dir / "src"
-        src_dir.mkdir(exist_ok=True)
-        
-        total_size = 0
-        max_size = 1 * 1024 * 1024
-        
-        with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
-            file_list = zip_ref.infolist()
-            
-            root_folder = None
-            for file_info in file_list:
-                path_parts = file_info.filename.split('/')
-                if len(path_parts) > 1:
-                    root_folder = path_parts[0]
-                    break
-            
-            for file_info in file_list:
-                if total_size + file_info.file_size > max_size:
-                    raise HTTPException(
-                        status_code=413,
-                        detail="Unzipped content would exceed 1MB limit. Please reduce the size of the zip file."
-                    )
-                
-                if file_info.filename == root_folder + '/':
-                    continue
-                
-                if root_folder and file_info.filename.startswith(root_folder + '/'):
-                    new_filename = file_info.filename[len(root_folder) + 1:]
-                    file_info.filename = new_filename
-                
-                zip_ref.extract(file_info, src_dir)
-                total_size += file_info.file_size
+    s3_client = boto3.client('s3')
 
     try:
-        await asyncio.wait_for(process_zip(), timeout=10.0)
-    except asyncio.TimeoutError:
+        s3_client.upload_fileobj(agent_file.file, s3_bucket_name, f"{agent_id}/agent.py")
+    except Exception as e:
+        print(e)
         raise HTTPException(
-            status_code=408,
-            detail="Operation timed out after 10 seconds. Please reduce the size of the zip file."
+            status_code=400,
+            detail=f"Failed to upload agent to our database"
         )
-
-    subprocess.run(
-        ['aws', 's3', 'sync', str(temp_dir), f's3://ridges-agents/{agent_id}'],
-        capture_output=True,
-        text=True,
-        check=True
-    )
-
-    # If agent_id is provided, get the agent from the database
-    if registered_agent_id:
-        agent = db.get_agent(agent_id)
-        created_at = agent.created_at
-        version = agent.version + 1
-        elo = agent.elo
-        num_responses = agent.num_responses
-    else:
-        created_at = datetime.now()
-        version = 1
-        elo = 500
-        num_responses = 0
-
-    agent = Agent(
-            agent_id=str(agent_id),
-            miner_hotkey=miner_hotkey,
-            created_at=created_at,
-            last_updated=datetime.now(),
-            type=type,
-            version=version,
-            elo=elo,
-            num_responses=num_responses
-        )
-    db.store_agent(agent)
-
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
     
+    agent_object = Agent(
+        agent_id=agent_id,
+        miner_hotkey=existing_agent.miner_hotkey if existing_agent else miner_hotkey,
+        created_at=existing_agent.created_at if existing_agent else datetime.now(),
+        last_updated=datetime.now(),
+        type=existing_agent.type if existing_agent else type,
+        version=existing_agent.version + 1 if existing_agent else 1,
+        elo=existing_agent.elo if existing_agent else 500,
+        num_responses=existing_agent.num_responses if existing_agent else 0
+    )
+    result = db.store_agent(agent_object)
+    if result == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to store agent in our database"
+        )
+
     return {
         "status": "success",
-        "message": f"Agent {str(agent_id)} stored successfully",
+        "details": {
+            "agent_id": agent_id,
+        },
+        "message": f"Successfully updated agent {agent_id}" if existing_agent else f"Successfully created agent {agent_id}"
     }
  
 async def post_scores(data: Union[List[Score], Score]):

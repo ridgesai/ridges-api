@@ -265,6 +265,9 @@ class DatabaseManager:
                     cursor.execute("""
                         INSERT INTO agents (agent_id, miner_hotkey, created_at, last_updated, type, version, elo, num_responses)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (agent_id) DO UPDATE SET
+                            last_updated = EXCLUDED.last_updated,
+                            version = EXCLUDED.version
                     """, (
                         agent.agent_id,
                         agent.miner_hotkey,
@@ -280,6 +283,34 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing agent {getattr(agent, 'agent_id', None)}: {str(e)}")
             return 0
+        
+    def get_agent(self, agent_id: str) -> Agent:
+        """Retrieve an agent from the database (AWS Postgres RDS).
+        Returns an Agent object.
+        """
+        conn = self.get_connection()
+        try:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT * FROM agents WHERE agent_id = %s
+                    """, (agent_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        return Agent(
+                            agent_id=row[0],
+                            miner_hotkey=row[1],
+                            created_at=row[2],
+                            last_updated=row[3],
+                            type=row[4],
+                            version=row[5],
+                            elo=row[6],
+                            num_responses=row[7]
+                        )
+                    return None
+        except Exception as e:
+            print(f"Error getting agent {agent_id}: {str(e)}")
+            return None
 
     def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
         """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
