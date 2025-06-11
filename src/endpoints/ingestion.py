@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 import logging
@@ -7,11 +7,10 @@ import uuid
 import asyncio
 import subprocess
 import shutil
-from datetime import datetime
-
+from datetime import datetime=
 from src.utils.auth import verify_request
 from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
-from src.db.operations_new import DatabaseManager
+from src.db.operations import DatabaseManager
 
 from src.utils.config import PROBLEM_TYPES
 
@@ -300,17 +299,37 @@ async def post_agent (
         "message": f"Agent {str(agent_id)} stored successfully",
     }
  
-async def post_scores(data: Score):
-    result = db.store_score(data)
-    if result == 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Failed to store score"
-        )
-    
+async def post_scores(data: Union[List[Score], Score]):
+    details = {
+        "total_sent_scores": len(data) if isinstance(data, list) else 1,
+        "total_stored_scores": 0,
+        "total_unstored_scores": 0,
+        "list_of_stored_scores": [],
+        "list_of_unstored_scores": [],
+    }
+
+    if isinstance(data, list):
+        for score in data:
+            result = db.store_score(score)
+            if result == 0:
+                details["total_unstored_scores"] += 1
+                details["list_of_unstored_scores"].append(score)
+            else:
+                    details["total_stored_scores"] += 1
+                    details["list_of_stored_scores"].append(score)
+    else:
+        result = db.store_score(data)
+        if result == 0:
+            details["total_unstored_scores"] += 1
+            details["list_of_unstored_scores"].append(data)
+        else:
+            details["total_stored_scores"] += 1
+            details["list_of_stored_scores"].append(data)
+
     return {
         "status": "success",
-        "message": "Score stored successfully",
+        "details": details,
+        "message": f"Successfully stored {details['total_stored_scores']} of {details['total_sent_scores']} scores. {details['total_unstored_scores']} scores were not stored due to duplicate validator_hotkey / miner_hotkey combinations",
     }
 
 router = APIRouter()

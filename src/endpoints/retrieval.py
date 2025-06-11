@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 from src.utils.auth import verify_request
-from src.db.operations_new import DatabaseManager
+from src.db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
