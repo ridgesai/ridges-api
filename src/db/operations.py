@@ -253,33 +253,6 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing score for validator {getattr(score, 'validator_hotkey', None)} and miner {getattr(score, 'miner_hotkey', None)}: {str(e)}")
             return 0
-        
-    def store_agent(self, agent: Agent) -> int:
-        """Store an agent in the database (AWS Postgres RDS).
-        Returns 1 on success, 0 on failure.
-        """
-        try:
-            conn = self.get_connection()
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO agents (agent_id, miner_hotkey, created_at, last_updated, type, version, elo, num_responses)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        agent.agent_id,
-                        agent.miner_hotkey,
-                        agent.created_at,
-                        agent.last_updated,
-                        agent.type,
-                        agent.version,
-                        agent.elo,
-                        agent.num_responses
-                    ))
-                conn.commit()
-            return 1
-        except Exception as e:
-            print(f"Error storing agent {getattr(agent, 'agent_id', None)}: {str(e)}")
-            return 0
 
     def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
         """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
