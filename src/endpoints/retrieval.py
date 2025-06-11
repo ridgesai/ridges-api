@@ -1,7 +1,8 @@
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 import logging
-from typing import Optional
+import boto3
+import os
+from dotenv import load_dotenv
 
 from src.utils.auth import verify_request
 from src.db.operations import DatabaseManager
@@ -9,6 +10,9 @@ from src.db.operations import DatabaseManager
 logger = logging.getLogger(__name__)
 
 db = DatabaseManager()
+
+load_dotenv()
+s3_bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
 
 async def get_codegen_challenge(challenge_id: str):
     challenge = db.get_codegen_challenges(challenge_id=challenge_id)
@@ -122,12 +126,55 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
         "miners": miners
     }
 
+async def get_agent_code(agent_id: str):
+    agent = db.get_agent(agent_id)
+    
+    if not agent:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "status": "fail",
+                "message": f"Agent code not found for agent {agent_id}",
+                "details": {
+                    "agent_id": agent_id,
+                    "agent_code": None
+                }
+            }
+        )
+    
+    try:
+        s3 = boto3.client('s3')
+        agent_object = s3.get_object(Bucket=s3_bucket_name, Key=f"{agent_id}/agent.py")
+        agent_code = agent_object['Body'].read().decode('utf-8')
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "fail",
+                "message": f"Internal server error while retrieving agent code for agent {agent_id}. Please try again later.",
+                "details": {
+                    "agent_id": agent_id,
+                    "agent_code": None
+                }
+            }
+        )
+    
+    return {
+        "status": "success",
+        "message": f"Agent code successfully retrieved",
+        "details": {
+            "agent_id": agent_id,
+            "agent_code": agent_code
+        }
+    }
+
 router = APIRouter()
 
 routes = [
     ("/codegen-challenge", get_codegen_challenge),
     ("/codegen-challenges", get_codegen_challenges),
     ("/miner-responses", get_miner_responses),
+    ("/agent-code", get_agent_code),
 ]
 
 for path, endpoint in routes:
