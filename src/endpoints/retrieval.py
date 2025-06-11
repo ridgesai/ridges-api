@@ -122,12 +122,35 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
         "miners": miners
     }
 
+async def get_single_miner_responses(miner_hotkey: str):
+    responses = db.get_codegen_challenge_responses(miner_hotkey=miner_hotkey)
+
+    if not responses:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "status": "fail",
+                "message": f"No miner graded responses found for miner {miner_hotkey}",
+                "responses": []
+            }
+        )
+
+    return {
+        "status": "success",
+        "message": f"Miner graded responses retrieved successfully for miner {miner_hotkey}",
+        "details": {
+            "response_count": len(responses),
+            "responses": responses
+        }
+    }
+
 router = APIRouter()
 
 routes = [
     ("/codegen-challenge", get_codegen_challenge),
     ("/codegen-challenges", get_codegen_challenges),
     ("/miner-responses", get_miner_responses),
+    ("/single-miner-responses", get_single_miner_responses),
 ]
 
 for path, endpoint in routes:

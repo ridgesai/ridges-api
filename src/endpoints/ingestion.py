@@ -1,18 +1,10 @@
-from typing import List, Optional, Union
-from pathlib import Path
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from typing import List, Union
+from fastapi import APIRouter, Depends
 import logging
-import zipfile
-import uuid
-import asyncio
-import subprocess
-import shutil
 from datetime import datetime
 from src.utils.auth import verify_request
-from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
+from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, ValidatorVersion, Score
 from src.db.operations import DatabaseManager
-
-from src.utils.config import PROBLEM_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -171,133 +163,6 @@ async def post_regression_responses(data: List[RegressionResponse], validator_ho
         "details": details,
         "message": f"Successfully stored {details['total_stored_regression_responses']} of {details['total_sent_regression_responses']} regression responses. {details['total_unstored_regression_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations",
     }
-
-async def post_agent (
-    zip_file: UploadFile = File(...),
-    miner_hotkey: str = None,
-    type: str = None,
-    registered_agent_id: Optional[str] = None,
-):
-    # Check if file is a zip file
-    if not zip_file.filename.endswith('.zip'):
-        raise HTTPException(
-            status_code=400,
-            detail="File must be a zip file"
-        )
-
-    # Check if miner_hotkey is provided
-    if not miner_hotkey:
-        raise HTTPException(
-            status_code=400,
-            detail="miner_hotkey is required"
-        )
-
-    # Check if type is provided and is valid
-    if not type or type not in PROBLEM_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"type is required and must be one of {PROBLEM_TYPES}"
-        )
-    
-    if registered_agent_id:
-        agent = db.get_agent(registered_agent_id)
-        if not agent:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Agent {agent_id} not found"
-            )
-    
-    # Create a temporary directory for unzipping
-    agent_id = uuid.uuid4() if not registered_agent_id else registered_agent_id
-    temp_dir = Path(f"agent_{agent_id}")
-    temp_dir.mkdir(exist_ok=True)
-
-    async def process_zip():
-        content = await zip_file.read()
-        temp_zip = temp_dir / "agent.zip"
-        with open(temp_zip, "wb") as f:
-            f.write(content)
-        
-        src_dir = temp_dir / "src"
-        src_dir.mkdir(exist_ok=True)
-        
-        total_size = 0
-        max_size = 1 * 1024 * 1024
-        
-        with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
-            file_list = zip_ref.infolist()
-            
-            root_folder = None
-            for file_info in file_list:
-                path_parts = file_info.filename.split('/')
-                if len(path_parts) > 1:
-                    root_folder = path_parts[0]
-                    break
-            
-            for file_info in file_list:
-                if total_size + file_info.file_size > max_size:
-                    raise HTTPException(
-                        status_code=413,
-                        detail="Unzipped content would exceed 1MB limit. Please reduce the size of the zip file."
-                    )
-                
-                if file_info.filename == root_folder + '/':
-                    continue
-                
-                if root_folder and file_info.filename.startswith(root_folder + '/'):
-                    new_filename = file_info.filename[len(root_folder) + 1:]
-                    file_info.filename = new_filename
-                
-                zip_ref.extract(file_info, src_dir)
-                total_size += file_info.file_size
-
-    try:
-        await asyncio.wait_for(process_zip(), timeout=10.0)
-    except asyncio.TimeoutError:
-        raise HTTPException(
-            status_code=408,
-            detail="Operation timed out after 10 seconds. Please reduce the size of the zip file."
-        )
-
-    subprocess.run(
-        ['aws', 's3', 'sync', str(temp_dir), f's3://ridges-agents/{agent_id}'],
-        capture_output=True,
-        text=True,
-        check=True
-    )
-
-    # If agent_id is provided, get the agent from the database
-    if registered_agent_id:
-        agent = db.get_agent(agent_id)
-        created_at = agent.created_at
-        version = agent.version + 1
-        elo = agent.elo
-        num_responses = agent.num_responses
-    else:
-        created_at = datetime.now()
-        version = 1
-        elo = 500
-        num_responses = 0
-
-    agent = Agent(
-            agent_id=str(agent_id),
-            miner_hotkey=miner_hotkey,
-            created_at=created_at,
-            last_updated=datetime.now(),
-            type=type,
-            version=version,
-            elo=elo,
-            num_responses=num_responses
-        )
-    db.store_agent(agent)
-
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-    
-    return {
-        "status": "success",
-        "message": f"Agent {str(agent_id)} stored successfully",
-    }
  
 async def post_scores(data: Union[List[Score], Score]):
     details = {
@@ -339,8 +204,7 @@ routes = [
     ("/regression-challenges", post_regression_challenges),
     ("/codegen-responses", post_codegen_responses),
     ("/regression-responses", post_regression_responses),
-    ("/scores", post_scores),
-    ("/agents", post_agent),
+    ("/scores", post_scores)
 ]
 
 for path, endpoint in routes:

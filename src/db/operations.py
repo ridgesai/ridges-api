@@ -253,33 +253,6 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing score for validator {getattr(score, 'validator_hotkey', None)} and miner {getattr(score, 'miner_hotkey', None)}: {str(e)}")
             return 0
-        
-    def store_agent(self, agent: Agent) -> int:
-        """Store an agent in the database (AWS Postgres RDS).
-        Returns 1 on success, 0 on failure.
-        """
-        try:
-            conn = self.get_connection()
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO agents (agent_id, miner_hotkey, created_at, last_updated, type, version, elo, num_responses)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        agent.agent_id,
-                        agent.miner_hotkey,
-                        agent.created_at,
-                        agent.last_updated,
-                        agent.type,
-                        agent.version,
-                        agent.elo,
-                        agent.num_responses
-                    ))
-                conn.commit()
-            return 1
-        except Exception as e:
-            print(f"Error storing agent {getattr(agent, 'agent_id', None)}: {str(e)}")
-            return 0
 
     def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
         """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
@@ -359,7 +332,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def get_codegen_challenge_responses(self, challenge_id: str = None) -> List[CodegenResponse]:
+    def get_codegen_challenge_responses(self, challenge_id: str = None, miner_hotkey: str = None) -> List[CodegenResponse]:
         """Retrieve codegen responses from the database (AWS Postgres RDS).
         Returns a list of CodegenResponse objects matching the original output format.
         Only includes responses where evaluated is TRUE and score is not NULL.
@@ -387,6 +360,25 @@ class DatabaseManager:
                                 AND r.miner_hotkey = cr.miner_hotkey
                             WHERE r.challenge_id = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
                         """, (challenge_id,))
+                    elif miner_hotkey:
+                        cursor.execute("""
+                            SELECT 
+                                r.challenge_id,
+                                r.miner_hotkey,
+                                r.node_id,
+                                r.processing_time,
+                                r.received_at,
+                                r.completed_at,
+                                r.evaluated,
+                                r.score,
+                                r.evaluated_at,
+                                cr.response_patch
+                            FROM responses r
+                            JOIN codegen_responses cr 
+                                ON r.challenge_id = cr.challenge_id 
+                                AND r.miner_hotkey = cr.miner_hotkey
+                            WHERE r.miner_hotkey = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
+                        """, (miner_hotkey,))
                     else:
                         cursor.execute("""
                             SELECT 
