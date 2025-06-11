@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 import logging
 import boto3
 import os
@@ -134,7 +135,7 @@ async def get_agent_code(agent_id: str):
             status_code=404,
             detail={
                 "status": "fail",
-                "message": f"Agent code not found for agent {agent_id}",
+                "message": f"Agent not found",
                 "details": {
                     "agent_id": agent_id,
                     "agent_code": None
@@ -151,7 +152,7 @@ async def get_agent_code(agent_id: str):
             status_code=500,
             detail={
                 "status": "fail",
-                "message": f"Internal server error while retrieving agent code for agent {agent_id}. Please try again later.",
+                "message": f"Internal server error while retrieving agent code. Please try again later.",
                 "details": {
                     "agent_id": agent_id,
                     "agent_code": None
@@ -168,6 +169,48 @@ async def get_agent_code(agent_id: str):
         }
     }
 
+async def get_agent_file(agent_id: str):
+    agent = db.get_agent(agent_id)
+    
+    if not agent:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "status": "fail",
+                "message": f"Agent not found",
+                "details": {
+                    "agent_id": agent_id,
+                    "agent_file": None
+                }
+            }
+        )
+    
+    try:
+        s3 = boto3.client('s3')
+        agent_object = s3.get_object(Bucket=s3_bucket_name, Key=f"{agent_id}/agent.py")
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "fail",
+                "message": f"Internal server error while retrieving agent file. Please try again later.",
+                "details": {
+                    "agent_id": agent_id,
+                    "agent_file": None
+                }
+            }
+        )
+    
+    return StreamingResponse(
+        agent_object['Body'],
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f'attachment; filename="agent.py"',
+            "X-Message": "Agent file retrieved successfully",
+            "X-Agent-ID": agent_id
+        }
+    )
+    
 router = APIRouter()
 
 routes = [
@@ -175,6 +218,7 @@ routes = [
     ("/codegen-challenges", get_codegen_challenges),
     ("/miner-responses", get_miner_responses),
     ("/agent-code", get_agent_code),
+    ("/agent-file", get_agent_file),
 ]
 
 for path, endpoint in routes:
