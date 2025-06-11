@@ -332,7 +332,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def get_codegen_challenge_responses(self, challenge_id: str = None) -> List[CodegenResponse]:
+    def get_codegen_challenge_responses(self, challenge_id: str = None, miner_hotkey: str = None) -> List[CodegenResponse]:
         """Retrieve codegen responses from the database (AWS Postgres RDS).
         Returns a list of CodegenResponse objects matching the original output format.
         Only includes responses where evaluated is TRUE and score is not NULL.
@@ -360,6 +360,25 @@ class DatabaseManager:
                                 AND r.miner_hotkey = cr.miner_hotkey
                             WHERE r.challenge_id = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
                         """, (challenge_id,))
+                    elif miner_hotkey:
+                        cursor.execute("""
+                            SELECT 
+                                r.challenge_id,
+                                r.miner_hotkey,
+                                r.node_id,
+                                r.processing_time,
+                                r.received_at,
+                                r.completed_at,
+                                r.evaluated,
+                                r.score,
+                                r.evaluated_at,
+                                cr.response_patch
+                            FROM responses r
+                            JOIN codegen_responses cr 
+                                ON r.challenge_id = cr.challenge_id 
+                                AND r.miner_hotkey = cr.miner_hotkey
+                            WHERE r.miner_hotkey = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
+                        """, (miner_hotkey,))
                     else:
                         cursor.execute("""
                             SELECT 
