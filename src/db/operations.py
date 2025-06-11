@@ -1,374 +1,429 @@
+import os
+import psycopg2
+from dotenv import load_dotenv
 import json
-import sqlite3
-from pathlib import Path
-import logging
-from typing import List, Optional
+from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, ValidatorVersion, Score, Agent
+from typing import List, Dict
 
-from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, Agent, ValidatorVersion
-from .schema import check_db_initialized, init_db
-
-logger = logging.getLogger(__name__)
+load_dotenv()
 
 class DatabaseManager:
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
-
-        # Initialize database if needed
-        if not check_db_initialized(str(db_path)):
-            logger.info(f"Initializing new database at {db_path}")
-            init_db(str(db_path))
-        
-        self.conn = sqlite3.connect(db_path)
-        self.conn.row_factory = sqlite3.Row
-        logger.info(f"Connected to database at {db_path}")
+    def __init__(self):
+        self.conn = psycopg2.connect(
+            host=os.getenv('AWS_RDS_PLATFORM_ENDPOINT'),
+            user=os.getenv('AWS_MASTER_USERNAME'),
+            password=os.getenv('AWS_MASTER_PASSWORD'),
+            database=os.getenv('AWS_RDS_PLATFORM_DB_NAME'),
+            sslmode='require'
+        )
+        self.conn.autocommit = True
 
     def close(self):
         if self.conn:
             self.conn.close()
 
-    def get_connection(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path)
-    
+    def get_connection(self):
+        return psycopg2.connect(
+            host=os.getenv('AWS_RDS_PLATFORM_ENDPOINT'),
+            user=os.getenv('AWS_MASTER_USERNAME'),
+            password=os.getenv('AWS_MASTER_PASSWORD'),
+            database=os.getenv('AWS_RDS_PLATFORM_DB_NAME'),
+            sslmode='require'
+        ) 
+
     def store_codegen_challenge(self, challenge: CodegenChallenge) -> int:
-        """Store a codegen challenge in the database.
-        
+        """Store a codegen challenge in the database (AWS Postgres RDS).
         This stores the challenge in both the challenges and codegen_challenges tables.
+        Returns 1 on success, 0 on failure.
         """
-        conn = self.get_connection()
         try:
+            conn = self.get_connection()
             with conn:
-                cursor = conn.cursor()
-                
-                # First insert into challenges table
-                cursor.execute("""
-                    INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
-                    VALUES (?, ?, ?, ?)
-                """, (
-                    challenge.challenge_id,
-                    'codegen',
-                    challenge.validator_hotkey,
-                    challenge.created_at
-                ))
-                
-                # Then insert into codegen_challenges table
-                cursor.execute("""
-                    INSERT INTO codegen_challenges (
-                        challenge_id, problem_statement, dynamic_checklist,
-                        repository_url, commit_hash, context_file_paths
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    challenge.challenge_id,
-                    challenge.problem_statement,
-                    json.dumps(challenge.dynamic_checklist),
-                    challenge.repository_url,
-                    challenge.commit_hash,
-                    json.dumps(challenge.context_file_paths)
-                ))
+                with conn.cursor() as cursor:
+                    # Insert into challenges table
+                    cursor.execute("""
+                        INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
+                        VALUES (%s, %s, %s, %s)
+                    """, (
+                        challenge.challenge_id,
+                        'codegen',
+                        challenge.validator_hotkey,
+                        challenge.created_at
+                    ))
+
+                    # Insert into codegen_challenges table
+                    cursor.execute("""
+                        INSERT INTO codegen_challenges (
+                            challenge_id, problem_statement, dynamic_checklist,
+                            repository_url, commit_hash, context_file_paths
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (
+                        challenge.challenge_id,
+                        challenge.problem_statement,
+                        json.dumps(challenge.dynamic_checklist),
+                        challenge.repository_url,
+                        challenge.commit_hash,
+                        json.dumps(challenge.context_file_paths)
+                    ))
                 conn.commit()
-                logger.info(f"Stored codegen challenge {challenge.challenge_id}")
-                return 1
+            return 1
         except Exception as e:
-            logger.error(f"Error storing codegen challenge {challenge.challenge_id}: {str(e)}")
+            print(f"Error storing codegen challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
             return 0
 
     def store_regression_challenge(self, challenge: RegressionChallenge) -> int:
-        conn = self.get_connection()
+        """Store a regression challenge in the database (AWS Postgres RDS).
+        This stores the challenge in both the challenges and regression_challenges tables.
+        Returns 1 on success, 0 on failure.
+        """
         try:
+            conn = self.get_connection()
             with conn:
-                cursor = conn.cursor()
-                
-                # First insert into challenges table
-                cursor.execute("""
-                    INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
-                    VALUES (?, ?, ?, ?)
-                """, (
-                    challenge.challenge_id,
-                    'regression',
-                    challenge.validator_hotkey, 
-                    challenge.created_at
-                ))
-                
-                # Then insert into regression_challenges table
-                cursor.execute("""
-                    INSERT INTO regression_challenges (
-                        challenge_id, problem_statement, repository_url,
-                        commit_hash, context_file_paths
-                    )
-                    VALUES (?, ?, ?, ?, ?)
-                """, (
-                    challenge.challenge_id,
-                    challenge.problem_statement,
-                    challenge.repository_url,
-                    challenge.commit_hash,
-                    json.dumps(challenge.context_file_paths)
-                ))
+                with conn.cursor() as cursor:
+                    # Insert into challenges table
+                    cursor.execute("""
+                        INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
+                        VALUES (%s, %s, %s, %s)
+                    """, (
+                        challenge.challenge_id,
+                        'regression',
+                        challenge.validator_hotkey,
+                        challenge.created_at
+                    ))
+
+                    # Insert into regression_challenges table
+                    cursor.execute("""
+                        INSERT INTO regression_challenges (
+                            challenge_id, problem_statement, repository_url,
+                            commit_hash, context_file_paths
+                        )
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (
+                        challenge.challenge_id,
+                        challenge.problem_statement,
+                        challenge.repository_url,
+                        challenge.commit_hash,
+                        json.dumps(challenge.context_file_paths)
+                    ))
                 conn.commit()
-                logger.info(f"Stored regression challenge {challenge.challenge_id}")
-                return 1
+            return 1
         except Exception as e:
-            logger.error(f"Error storing regression challenge {challenge.challenge_id}: {str(e)}")
+            print(f"Error storing regression challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
             return 0
 
     def store_codegen_response(self, response: CodegenResponse) -> int:
-        """Store a codegen response in the database.
-        
+        """Store a codegen response in the database (AWS Postgres RDS).
         This stores the response in both the responses and codegen_responses tables.
         On conflict, only updates evaluation-related fields (evaluated, score, evaluated_at).
+        Returns 1 on success, 0 on failure.
         """
-        conn = self.get_connection()
         try:
+            conn = self.get_connection()
             with conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT INTO responses (
-                        challenge_id, miner_hotkey, node_id, processing_time,
-                        received_at, completed_at, evaluated, score, evaluated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(challenge_id, miner_hotkey) DO UPDATE SET
-                        evaluated = excluded.evaluated,
-                        score = excluded.score,
-                        evaluated_at = excluded.evaluated_at
-                """, (
-                    response.challenge_id,
-                    response.miner_hotkey,
-                    response.node_id,
-                    response.processing_time,
-                    response.received_at,
-                    response.completed_at,
-                    response.evaluated,
-                    response.score,
-                    response.evaluated_at
-                ))
-                
-                cursor.execute("""
-                    INSERT INTO codegen_responses (challenge_id, miner_hotkey, response_patch)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(challenge_id, miner_hotkey) DO NOTHING
-                """, (
-                    response.challenge_id,
-                    response.miner_hotkey,
-                    response.response_patch
-                ))
-                
+                with conn.cursor() as cursor:
+                    # Insert or update into responses table
+                    cursor.execute("""
+                        INSERT INTO responses (
+                            challenge_id, miner_hotkey, node_id, processing_time,
+                            received_at, completed_at, evaluated, score, evaluated_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (challenge_id, miner_hotkey) DO UPDATE SET
+                            evaluated = EXCLUDED.evaluated,
+                            score = EXCLUDED.score,
+                            evaluated_at = EXCLUDED.evaluated_at
+                    """, (
+                        response.challenge_id,
+                        response.miner_hotkey,
+                        response.node_id,
+                        response.processing_time,
+                        response.received_at,
+                        response.completed_at,
+                        response.evaluated,
+                        response.score,
+                        response.evaluated_at
+                    ))
+
+                    # Insert into codegen_responses table, ignore on conflict
+                    cursor.execute("""
+                        INSERT INTO codegen_responses (challenge_id, miner_hotkey, response_patch)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (challenge_id, miner_hotkey) DO NOTHING
+                    """, (
+                        response.challenge_id,
+                        response.miner_hotkey,
+                        response.response_patch
+                    ))
                 conn.commit()
-                logger.info(f"Stored codegen response for challenge {response.challenge_id} from miner {response.miner_hotkey}")
-                return 1
+            return 1
         except Exception as e:
-            logger.error(f"Error storing codegen response for challenge {response.challenge_id} from miner {response.miner_hotkey}: {str(e)}")
+            print(f"Error storing codegen response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
             return 0
-        
+
     def store_regression_response(self, response: RegressionResponse) -> int:
-        """Store a regression response in the database.
-        
+        """Store a regression response in the database (AWS Postgres RDS).
         This stores the response in both the responses and regression_responses tables.
+        Returns 1 on success, 0 on failure.
+        """
+        try:
+            conn = self.get_connection()
+            with conn:
+                with conn.cursor() as cursor:
+                    # Insert into responses table
+                    cursor.execute("""
+                        INSERT INTO responses (
+                            challenge_id, miner_hotkey, node_id, processing_time,
+                            received_at, completed_at, evaluated, score, evaluated_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (challenge_id, miner_hotkey) DO UPDATE SET
+                            evaluated = EXCLUDED.evaluated,
+                            score = EXCLUDED.score,
+                            evaluated_at = EXCLUDED.evaluated_at
+                    """, (
+                        response.challenge_id,
+                        response.miner_hotkey,
+                        response.node_id,
+                        response.processing_time,
+                        response.received_at,
+                        response.completed_at,
+                        response.evaluated,
+                        response.score,
+                        response.evaluated_at
+                    ))
+
+                    # Insert into regression_responses table, ignore on conflict
+                    cursor.execute("""
+                        INSERT INTO regression_responses (challenge_id, miner_hotkey, response_patch)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (challenge_id, miner_hotkey) DO NOTHING
+                    """, (
+                        response.challenge_id,
+                        response.miner_hotkey,
+                        response.response_patch
+                    ))
+                conn.commit()
+            return 1
+        except Exception as e:
+            print(f"Error storing regression response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
+            return 0
+
+    def store_validator_version(self, validator_version: ValidatorVersion) -> int:
+        """Store a validator version in the database (AWS Postgres RDS).
+        Returns 1 on success, 0 on failure.
+        """
+        try:
+            conn = self.get_connection()
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO validator_versions (validator_hotkey, version, timestamp)
+                        VALUES (%s, %s, %s)
+                    """, (
+                        validator_version.validator_hotkey,
+                        validator_version.version,
+                        validator_version.timestamp
+                    ))
+                conn.commit()
+            return 1
+        except Exception as e:
+            print(f"Error storing validator version {getattr(validator_version, 'version', None)} for validator {getattr(validator_version, 'validator_hotkey', None)}: {str(e)}")
+            return 0
+
+    def store_score(self, score: Score) -> int:
+        """Store a score in the database (AWS Postgres RDS).
+        Returns 1 on success, 0 on failure.
+        """
+        try:
+            conn = self.get_connection()
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO scores (type, validator_hotkey, miner_hotkey, score)
+                        VALUES (%s, %s, %s, %s)
+                    """, (
+                        score.type,
+                        score.validator_hotkey,
+                        score.miner_hotkey,
+                        score.score,
+                    ))
+                conn.commit()
+            return 1
+        except Exception as e:
+            print(f"Error storing score for validator {getattr(score, 'validator_hotkey', None)} and miner {getattr(score, 'miner_hotkey', None)}: {str(e)}")
+            return 0
+        
+    def store_agent(self, agent: Agent) -> int:
+        """Store an agent in the database (AWS Postgres RDS).
+        Returns 1 on success, 0 on failure.
+        """
+        try:
+            conn = self.get_connection()
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO agents (agent_id, miner_hotkey, created_at, last_updated, type, version, elo, num_responses)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        agent.agent_id,
+                        agent.miner_hotkey,
+                        agent.created_at,
+                        agent.last_updated,
+                        agent.type,
+                        agent.version,
+                        agent.elo,
+                        agent.num_responses
+                    ))
+                conn.commit()
+            return 1
+        except Exception as e:
+            print(f"Error storing agent {getattr(agent, 'agent_id', None)}: {str(e)}")
+            return 0
+
+    def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
+        """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
+        Returns a list of dicts matching the original output format.
+        response_count only includes responses where evaluated is TRUE and score is not NULL.
         """
         conn = self.get_connection()
         try:
             with conn:
-                cursor = conn.cursor()
-
-                # First insert into responses table
-                cursor.execute("""
-                    INSERT INTO responses (
-                        challenge_id, miner_hotkey, node_id, processing_time,
-                        received_at, completed_at, evaluated, score, evaluated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    response.challenge_id,
-                    response.miner_hotkey,
-                    response.node_id,
-                    response.processing_time,
-                    response.received_at,
-                    response.completed_at,
-                    response.evaluated,
-                    response.score,
-                    response.evaluated_at
-                ))
-
-                # Then insert into regression_responses table
-                cursor.execute("""
-                    INSERT INTO regression_responses (challenge_id, miner_hotkey, response_patch)
-                    VALUES (?, ?, ?)
-                """, (
-                    response.challenge_id,
-                    response.miner_hotkey,
-                    response.response_patch
-                ))
-
-                conn.commit()
-                logger.info(f"Stored regression response for challenge {response.challenge_id} from miner {response.miner_hotkey}")
-                return 1
+                with conn.cursor() as cursor:
+                    if challenge_id:
+                        cursor.execute("""
+                            SELECT 
+                                c.challenge_id,
+                                c.type,
+                                c.validator_hotkey,
+                                c.created_at,
+                                cc.problem_statement,
+                                cc.dynamic_checklist,
+                                cc.repository_url,
+                                cc.commit_hash,
+                                cc.context_file_paths,
+                                COUNT(r.challenge_id) AS response_count
+                            FROM challenges c
+                            INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
+                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE AND r.score IS NOT NULL
+                            WHERE c.challenge_id = %s AND c.type = 'codegen'
+                            GROUP BY
+                                c.challenge_id, c.type, c.validator_hotkey, c.created_at,
+                                cc.problem_statement, cc.dynamic_checklist, cc.repository_url,
+                                cc.commit_hash, cc.context_file_paths
+                        """, (challenge_id,))
+                    else:
+                        cursor.execute("""
+                            SELECT 
+                                c.challenge_id,
+                                c.type,
+                                c.validator_hotkey,
+                                c.created_at,
+                                cc.problem_statement,
+                                cc.dynamic_checklist,
+                                cc.repository_url,
+                                cc.commit_hash,
+                                cc.context_file_paths,
+                                COUNT(r.challenge_id) AS response_count
+                            FROM challenges c
+                            INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
+                            LEFT JOIN responses r ON c.challenge_id = r.challenge_id AND r.evaluated = TRUE AND r.score IS NOT NULL
+                            WHERE c.type = 'codegen'
+                            GROUP BY
+                                c.challenge_id, c.type, c.validator_hotkey, c.created_at,
+                                cc.problem_statement, cc.dynamic_checklist, cc.repository_url,
+                                cc.commit_hash, cc.context_file_paths
+                        """)
+                    rows = cursor.fetchall()
+                    if not rows:
+                        return []
+                    results = []
+                    for row in rows:
+                        result = {
+                            'challenge_id': row[0],
+                            'type': row[1],
+                            'validator_hotkey': row[2],
+                            'created_at': row[3],
+                            'problem_statement': row[4],
+                            'dynamic_checklist': json.loads(row[5]) if row[5] else None,
+                            'repository_url': row[6],
+                            'commit_hash': row[7],
+                            'context_file_paths': json.loads(row[8]) if row[8] else None,
+                            'response_count': row[9]
+                        }
+                        results.append(result)
+                    return results
         except Exception as e:
-            logger.error(f"Error storing regression response for challenge {response.challenge_id} from miner {response.miner_hotkey}: {str(e)}")
-            return 0
+            print(f"Error getting codegen challenges: {str(e)}")
+            return []
+        finally:
+            conn.close()
 
-    def store_agent(self, agent: Agent) -> int:
-        conn = self.get_connection()
-        try:
-            with conn:
-                cursor = conn.cursor()
-                
-                # First insert into agents table
-                cursor.execute("""
-                    INSERT INTO agents (agent_id, miner_hotkey, created_at, last_updated, type, version, elo, num_responses)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    agent.agent_id,
-                    agent.miner_hotkey,
-                    agent.created_at,
-                    agent.last_updated,
-                    agent.type,
-                    agent.version,
-                    agent.elo,
-                    agent.num_responses
-                ))
-                conn.commit()
-                logger.info(f"Stored agent {agent.agent_id}")
-                return 1
-        except Exception as e:
-            logger.error(f"Error storing agent {agent.agent_id}: {str(e)}")
-            return 0
-        
-    def get_codegen_challenges(self, challenge_id: str = None) -> List[CodegenChallenge]:
-        conn = self.get_connection()
-        
-        with conn:
-            cursor = conn.cursor()
-
-            if challenge_id:
-                cursor.execute("""
-                    SELECT 
-                        c.challenge_id,
-                        c.type,
-                        c.validator_hotkey,
-                        c.created_at,
-                        cc.problem_statement,
-                        cc.dynamic_checklist,
-                        cc.repository_url,
-                        cc.commit_hash,
-                        cc.context_file_paths
-                    FROM challenges c
-                    INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
-                    WHERE c.challenge_id = ? AND c.type = 'codegen'
-                """, (challenge_id,))
-            else:
-                cursor.execute("""
-                    SELECT 
-                        c.challenge_id,
-                        c.type,
-                        c.validator_hotkey,
-                        c.created_at,
-                        cc.problem_statement,
-                        cc.dynamic_checklist,
-                        cc.repository_url,
-                        cc.commit_hash,
-                        cc.context_file_paths
-                    FROM challenges c
-                    INNER JOIN codegen_challenges cc ON c.challenge_id = cc.challenge_id
-                    WHERE c.type = 'codegen'
-                """)
-            
-            rows = cursor.fetchall()
-            if not rows:
-                return []
-            
-            # Convert rows to dictionaries and parse JSON fields
-            results = []
-            for row in rows:
-                result = {
-                    'challenge_id': row[0],
-                    'type': row[1],
-                    'validator_hotkey': row[2],
-                    'created_at': row[3],
-                    'problem_statement': row[4],
-                    'dynamic_checklist': json.loads(row[5]),
-                    'repository_url': row[6],
-                    'commit_hash': row[7],
-                    'context_file_paths': json.loads(row[8]),
-                    'response_count': 0
-                }
-                results.append(result)
-            
-            return results
-        
     def get_codegen_challenge_responses(self, challenge_id: str = None) -> List[CodegenResponse]:
-        conn = self.get_connection()
-        with conn:
-            cursor = conn.cursor()
-            if challenge_id:
-                cursor.execute("""
-                    SELECT 
-                        r.challenge_id,
-                        r.miner_hotkey,
-                        r.node_id,
-                        r.processing_time,
-                        r.received_at,
-                        r.completed_at,
-                        r.evaluated,
-                        r.score,
-                        r.evaluated_at,
-                        cr.response_patch
-                    FROM responses r
-                    JOIN codegen_responses cr 
-                        ON r.challenge_id = cr.challenge_id 
-                        AND r.miner_hotkey = cr.miner_hotkey
-                    WHERE r.challenge_id = ? AND r.evaluated = 1
-                """, (challenge_id,))
-            else:
-                cursor.execute("""
-                    SELECT 
-                        r.challenge_id,
-                        r.miner_hotkey,
-                        r.node_id,
-                        r.processing_time,
-                        r.received_at,
-                        r.completed_at,
-                        r.evaluated,
-                        r.score,
-                        r.evaluated_at,
-                        cr.response_patch
-                    FROM responses r
-                    JOIN codegen_responses cr 
-                        ON r.challenge_id = cr.challenge_id 
-                        AND r.miner_hotkey = cr.miner_hotkey
-                    WHERE r.evaluated = 1
-                """)
-            rows = cursor.fetchall()
-            if not rows:
-                return []
-            
-            return [
-                CodegenResponse(
-                    challenge_id=row[0],
-                    miner_hotkey=row[1],
-                    node_id=row[2],
-                    processing_time=row[3],
-                    received_at=row[4],
-                    completed_at=row[5],
-                    evaluated=row[6],
-                    score=row[7],
-                    evaluated_at=row[8],
-                    response_patch=row[9]
-                )
-                for row in rows
-            ]
-        
-    def store_validator_version(self, validator_version: ValidatorVersion) -> int:
+        """Retrieve codegen responses from the database (AWS Postgres RDS).
+        Returns a list of CodegenResponse objects matching the original output format.
+        Only includes responses where evaluated is TRUE and score is not NULL.
+        """
         conn = self.get_connection()
         try:
             with conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO validator_versions (validator_hotkey, version, timestamp)
-                    VALUES (?, ?, ?)
-                """, (validator_version.validator_hotkey, validator_version.version, validator_version.timestamp))
-                conn.commit()
-                logger.info(f"Stored validator version {validator_version.version} for validator {validator_version.validator_hotkey}")
-                return 1
-        except Exception as e:
-            logger.error(f"Error storing validator version {validator_version.version} for validator {validator_version.validator_hotkey}: {str(e)}")
-            return 0
+                with conn.cursor() as cursor:
+                    if challenge_id:
+                        cursor.execute("""
+                            SELECT 
+                                r.challenge_id,
+                                r.miner_hotkey,
+                                r.node_id,
+                                r.processing_time,
+                                r.received_at,
+                                r.completed_at,
+                                r.evaluated,
+                                r.score,
+                                r.evaluated_at,
+                                cr.response_patch
+                            FROM responses r
+                            JOIN codegen_responses cr 
+                                ON r.challenge_id = cr.challenge_id 
+                                AND r.miner_hotkey = cr.miner_hotkey
+                            WHERE r.challenge_id = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
+                        """, (challenge_id,))
+                    else:
+                        cursor.execute("""
+                            SELECT 
+                                r.challenge_id,
+                                r.miner_hotkey,
+                                r.node_id,
+                                r.processing_time,
+                                r.received_at,
+                                r.completed_at,
+                                r.evaluated,
+                                r.score,
+                                r.evaluated_at,
+                                cr.response_patch
+                            FROM responses r
+                            JOIN codegen_responses cr 
+                                ON r.challenge_id = cr.challenge_id 
+                                AND r.miner_hotkey = cr.miner_hotkey
+                            WHERE r.evaluated = TRUE AND r.score IS NOT NULL
+                        """)
+                    rows = cursor.fetchall()
+                    if not rows:
+                        return []
+                    return [
+                        CodegenResponse(
+                            challenge_id=row[0],
+                            miner_hotkey=row[1],
+                            node_id=row[2],
+                            processing_time=row[3],
+                            received_at=row[4],
+                            completed_at=row[5],
+                            evaluated=row[6],
+                            score=row[7],
+                            evaluated_at=row[8],
+                            response_patch=row[9]
+                        )
+                        for row in rows
+                    ]
+        finally:
+            conn.close()
+

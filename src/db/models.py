@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import datetime
 
 class CodegenChallenge(BaseModel):
@@ -62,3 +62,9 @@ class ValidatorVersion(BaseModel):
     validator_hotkey: str
     version: str
     timestamp: datetime
+
+class Score(BaseModel):
+    type: str
+    validator_hotkey: str
+    miner_hotkey: str
+    score: float
