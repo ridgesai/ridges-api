@@ -204,7 +204,7 @@ routes = [
     ("/regression-challenges", post_regression_challenges),
     ("/codegen-responses", post_codegen_responses),
     ("/regression-responses", post_regression_responses),
-    # ("/scores", post_scores)
+    ("/scores", post_scores)
 ]
 
 for path, endpoint in routes:
