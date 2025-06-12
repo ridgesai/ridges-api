@@ -68,3 +68,4 @@ class Score(BaseModel):
     validator_hotkey: str
     miner_hotkey: str
     score: float
+    challenge_id: Optional[str] = None

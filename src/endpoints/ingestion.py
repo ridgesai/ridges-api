@@ -180,8 +180,8 @@ async def post_scores(data: Union[List[Score], Score]):
                 details["total_unstored_scores"] += 1
                 details["list_of_unstored_scores"].append(score)
             else:
-                    details["total_stored_scores"] += 1
-                    details["list_of_stored_scores"].append(score)
+                details["total_stored_scores"] += 1
+                details["list_of_stored_scores"].append(score)
     else:
         result = db.store_score(data)
         if result == 0:
