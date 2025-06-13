@@ -25,7 +25,11 @@ async def get_codegen_challenge(challenge_id: str):
         )
     
     responses = db.get_codegen_challenge_responses(challenge_id=challenge_id)
-    
+    if len(responses) > 0:
+        responses = responses[0]
+    else:
+        responses = []
+
     return {
         "status": "success",
         "message": f"Codegen challenge {challenge_id} retrieved successfully",
@@ -106,9 +110,9 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
     }
 
 async def get_single_miner_responses(miner_hotkey: str):
-    responses = db.get_codegen_challenge_responses(miner_hotkey=miner_hotkey)
+    responses_obj = db.get_codegen_challenge_responses(miner_hotkey=miner_hotkey)
 
-    if not responses:
+    if not responses_obj:
         raise HTTPException(
             status_code=404,
             detail={
@@ -117,11 +121,14 @@ async def get_single_miner_responses(miner_hotkey: str):
                 "responses": []
             }
         )
+    
+    responses = responses_obj[0]['responses']
 
     return {
         "status": "success",
-        "message": f"Miner graded responses retrieved successfully for miner {miner_hotkey}",
+        "message": f"Miner graded responses retrieved",
         "details": {
+            "miner_hotkey": miner_hotkey,
             "response_count": len(responses),
             "responses": responses
         }
