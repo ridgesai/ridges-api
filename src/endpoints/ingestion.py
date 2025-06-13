@@ -165,27 +165,17 @@ async def post_regression_responses(data: List[RegressionResponse], validator_ho
     }
  
 async def post_scores(data: List[Score]):
-    details = {
-        "total_sent_scores": len(data),
-        "total_stored_scores": 0,
-        "total_unstored_scores": 0,
-        "list_of_stored_scores": [],
-        "list_of_unstored_scores": [],
-    }
-
-    for score in data:
-        result = db.store_score(score)
-        if result == 0:
-            details["total_unstored_scores"] += 1
-            details["list_of_unstored_scores"].append(score)
-        else:
-            details["total_stored_scores"] += 1
-            details["list_of_stored_scores"].append(score)
+    if not data:
+        return {
+            "status": "failure",
+            "message": "no scores to store",
+        }
+    
+    db.store_scores(data)
 
     return {
         "status": "success",
-        "details": details,
-        "message": f"Successfully stored {details['total_stored_scores']} of {details['total_sent_scores']} scores. {details['total_unstored_scores']} scores were not stored due to duplicate validator_hotkey / miner_hotkey combinations",
+        "message": f"Successfully stored {len(data)} scores",
     }
 
 router = APIRouter()
