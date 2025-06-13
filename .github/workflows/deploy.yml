@@ -6,7 +6,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPO: 160684124315.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/ridges-api
+  ECR_REPO: 160684124315.dkr.ecr.us-east-1.amazonaws.com/ridges-api
   SERVICE_NAME: api
   ENV_NAME: prod
 
