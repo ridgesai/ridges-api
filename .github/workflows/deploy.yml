@@ -46,9 +46,15 @@ jobs:
             -t $ECR_REPO:latest \
             --push .
 
+      - name: Install AWS Copilot CLI
+        run: |
+          curl -Lo copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux-x86_64
+          chmod +x copilot
+          sudo mv copilot /usr/local/bin/copilot
+
       - name: Deploy with AWS Copilot
         run: |
-          npx --yes aws-copilot-cli@latest deploy \
+          copilot deploy \
             --name $SERVICE_NAME \
             --env  $ENV_NAME \
             --image $ECR_REPO:${{ steps.vars.outputs.TAG }} 
