@@ -53,7 +53,7 @@ jobs:
 
       - name: Deploy with AWS Copilot
         run: |
-          copilot deploy \
+          copilot svc deploy \
             --name $SERVICE_NAME \
             --env  $ENV_NAME \
-            --image $ECR_REPO:${{ steps.vars.outputs.TAG }} 
+            --tag  ${{ steps.vars.outputs.TAG }} 
