@@ -81,9 +81,14 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
             }
         )
 
-    responses = db.get_codegen_challenge_responses()
+    miners = db.get_codegen_challenge_responses(
+        min_score=min_score,
+        min_response_count=min_response_count,
+        sort_by_score=sort_by_score,
+        max_miners=max_miners
+    )
 
-    if not responses:
+    if not miners:
         raise HTTPException(
             status_code=404,
             detail={
@@ -92,28 +97,6 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
                 "miners": []
             }
         )
-    
-    miner_responses = {}
-    for response in responses:
-        miner_hotkey = response.miner_hotkey
-        response.processing_time = (response.completed_at - response.received_at).total_seconds()
-        if miner_hotkey not in miner_responses:
-            miner_responses[miner_hotkey] = []
-        miner_responses[miner_hotkey].append(response)
-    
-    miners = [{"miner_hotkey": hotkey, "response_count": len(responses), "responses": responses} for hotkey, responses in miner_responses.items() if len(responses) >= min_response_count]
-
-    for miner in miners:
-        scores = [response.score for response in miner["responses"] if response.score is not None]
-        miner["average_score"] = sum(scores) / len(scores) if scores else 0
-    
-    if min_score:
-        miners = [miner for miner in miners if miner.get("average_score", 0) >= min_score]
-
-    if sort_by_score:
-        miners.sort(key=lambda x: x.get("average_score", 0), reverse=True)
-
-    miners = miners[:max_miners]
 
     return {
         "status": "success",
