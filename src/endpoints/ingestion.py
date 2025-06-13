@@ -164,32 +164,23 @@ async def post_regression_responses(data: List[RegressionResponse], validator_ho
         "message": f"Successfully stored {details['total_stored_regression_responses']} of {details['total_sent_regression_responses']} regression responses. {details['total_unstored_regression_responses']} responses were not stored due to duplicate challenge id / miner hotkey combinations",
     }
  
-async def post_scores(data: Union[List[Score], Score]):
+async def post_scores(data: List[Score]):
     details = {
-        "total_sent_scores": len(data) if isinstance(data, list) else 1,
+        "total_sent_scores": len(data),
         "total_stored_scores": 0,
         "total_unstored_scores": 0,
         "list_of_stored_scores": [],
         "list_of_unstored_scores": [],
     }
 
-    if isinstance(data, list):
-        for score in data:
-            result = db.store_score(score)
-            if result == 0:
-                details["total_unstored_scores"] += 1
-                details["list_of_unstored_scores"].append(score)
-            else:
-                details["total_stored_scores"] += 1
-                details["list_of_stored_scores"].append(score)
-    else:
-        result = db.store_score(data)
+    for score in data:
+        result = db.store_score(score)
         if result == 0:
             details["total_unstored_scores"] += 1
-            details["list_of_unstored_scores"].append(data)
+            details["list_of_unstored_scores"].append(score)
         else:
             details["total_stored_scores"] += 1
-            details["list_of_stored_scores"].append(data)
+            details["list_of_stored_scores"].append(score)
 
     return {
         "status": "success",
@@ -204,7 +195,7 @@ routes = [
     ("/regression-challenges", post_regression_challenges),
     ("/codegen-responses", post_codegen_responses),
     ("/regression-responses", post_regression_responses),
-    ("/scores", post_scores)
+    ("/scores-list", post_scores)
 ]
 
 for path, endpoint in routes:
