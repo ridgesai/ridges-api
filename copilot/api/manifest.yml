@@ -56,5 +56,5 @@ variables:
 
 deployment:
   rolling:
-    max_surge: 1
-    max_unavailable: 0
+    max_percent: 200    # allow 1 old + 1 new when count=1
+    min_healthy_percent: 100  # keep all existing tasks healthy during deploy
