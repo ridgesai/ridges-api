@@ -35,6 +35,8 @@ class CodegenResponse(BaseModel):
     score: Optional[float] = None
     evaluated_at: Optional[datetime] = None
     response_patch: str
+    response_count: Optional[int] = None
+    average_score: Optional[float] = None
 
 class RegressionResponse(BaseModel):
     challenge_id: str

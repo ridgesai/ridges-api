@@ -308,19 +308,27 @@ class DatabaseManager:
             print(f"Error getting codegen challenges: {str(e)}")
             return []
 
-    def get_codegen_challenge_responses(self, challenge_id: str = None, miner_hotkey: str = None) -> List[CodegenResponse]:
+    def get_codegen_challenge_responses(self, challenge_id: str = None, miner_hotkey: str = None, min_score: float = 0, min_response_count: int = 0, sort_by_score: bool = False, max_miners: int = 5, hours: int = 24) -> List[Dict]:
         """Retrieve codegen responses from the database (AWS Postgres RDS).
-        Returns a list of CodegenResponse objects matching the original output format.
+        Returns a list of dictionaries containing miner information and their responses.
         Only includes responses where evaluated is TRUE and score is not NULL.
+        
+        Additional parameters:
+        - min_score: Minimum average score for miners to be included
+        - min_response_count: Minimum number of responses required per miner
+        - sort_by_score: Whether to sort miners by average score
+        - max_miners: Maximum number of miners to return
+        - hours: Number of hours to look back (-1 for all time)
         """
         try:
             with self.conn:
                 with self.conn.cursor() as cursor:
-                    if challenge_id:
-                        cursor.execute("""
+                    # Base query with optimized structure
+                    base_query = """
+                        WITH RECURSIVE time_bucket AS (
                             SELECT 
-                                r.challenge_id,
                                 r.miner_hotkey,
+                                r.challenge_id,
                                 r.node_id,
                                 r.processing_time,
                                 r.received_at,
@@ -333,62 +341,89 @@ class DatabaseManager:
                             JOIN codegen_responses cr 
                                 ON r.challenge_id = cr.challenge_id 
                                 AND r.miner_hotkey = cr.miner_hotkey
-                            WHERE r.challenge_id = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
-                        """, (challenge_id,))
-                    elif miner_hotkey:
-                        cursor.execute("""
-                            SELECT 
-                                r.challenge_id,
-                                r.miner_hotkey,
-                                r.node_id,
-                                r.processing_time,
-                                r.received_at,
-                                r.completed_at,
-                                r.evaluated,
-                                r.score,
-                                r.evaluated_at,
-                                cr.response_patch
-                            FROM responses r
-                            JOIN codegen_responses cr 
-                                ON r.challenge_id = cr.challenge_id 
-                                AND r.miner_hotkey = cr.miner_hotkey
-                            WHERE r.miner_hotkey = %s AND r.evaluated = TRUE AND r.score IS NOT NULL
-                        """, (miner_hotkey,))
+                            WHERE r.evaluated = TRUE 
+                                AND r.score IS NOT NULL
+                    """
+
+                    # Add time filter if hours is not -1
+                    if hours != -1:
+                        base_query += " AND r.completed_at >= NOW() - INTERVAL '%s hours'"
+                        params = [hours]
                     else:
-                        cursor.execute("""
+                        params = []
+
+                    # Add challenge_id or miner_hotkey filter if provided
+                    if challenge_id:
+                        base_query += " AND r.challenge_id = %s"
+                        params.append(challenge_id)
+                    elif miner_hotkey:
+                        base_query += " AND r.miner_hotkey = %s"
+                        params.append(miner_hotkey)
+
+                    base_query += """
+                        ),
+                        miner_stats AS (
                             SELECT 
-                                r.challenge_id,
-                                r.miner_hotkey,
-                                r.node_id,
-                                r.processing_time,
-                                r.received_at,
-                                r.completed_at,
-                                r.evaluated,
-                                r.score,
-                                r.evaluated_at,
-                                cr.response_patch
-                            FROM responses r
-                            JOIN codegen_responses cr 
-                                ON r.challenge_id = cr.challenge_id 
-                                AND r.miner_hotkey = cr.miner_hotkey
-                            WHERE r.evaluated = TRUE AND r.score IS NOT NULL
-                        """)
+                                miner_hotkey,
+                                COUNT(*) as response_count,
+                                AVG(score) as average_score
+                            FROM time_bucket
+                            GROUP BY miner_hotkey
+                            HAVING COUNT(*) >= %s AND AVG(score) >= %s
+                        ),
+                        miner_responses AS (
+                            SELECT 
+                                t.miner_hotkey,
+                                json_agg(
+                                    json_build_object(
+                                        'challenge_id', t.challenge_id,
+                                        'miner_hotkey', t.miner_hotkey,
+                                        'node_id', t.node_id,
+                                        'processing_time', t.processing_time,
+                                        'received_at', t.received_at,
+                                        'completed_at', t.completed_at,
+                                        'evaluated', t.evaluated,
+                                        'score', t.score,
+                                        'evaluated_at', t.evaluated_at,
+                                        'response_patch', t.response_patch
+                                    )
+                                    ORDER BY t.completed_at DESC
+                                ) as responses
+                            FROM time_bucket t
+                            JOIN miner_stats ms ON t.miner_hotkey = ms.miner_hotkey
+                            GROUP BY t.miner_hotkey
+                        )
+                        SELECT 
+                            mr.miner_hotkey,
+                            ms.response_count,
+                            ms.average_score,
+                            mr.responses
+                        FROM miner_responses mr
+                        JOIN miner_stats ms ON mr.miner_hotkey = ms.miner_hotkey
+                    """
+
+                    # Add final sorting
+                    if sort_by_score:
+                        base_query += " ORDER BY ms.average_score DESC, mr.miner_hotkey"
+                    else:
+                        base_query += " ORDER BY mr.miner_hotkey"
+
+                    # Add final limit
+                    base_query += " LIMIT %s"
+                    params.extend([min_response_count, min_score, max_miners])
+
+                    cursor.execute(base_query, params)
                     rows = cursor.fetchall()
                     if not rows:
                         return []
+                    
                     return [
-                        CodegenResponse(
-                            challenge_id=row[0],
-                            miner_hotkey=row[1],
-                            node_id=row[2],
-                            processing_time=row[3],
-                            received_at=row[4],
-                            completed_at=row[5],
-                            evaluated=row[6],
-                            score=row[7],
-                            evaluated_at=row[8],
-                            response_patch=row[9]
-                        )
+                        {
+                            "miner_hotkey": row[0],
+                            "response_count": row[1],
+                            "average_score": row[2],
+                            "responses": [CodegenResponse(**response) for response in row[3]]
+                        }
                         for row in rows
                     ]
         except Exception as e:
