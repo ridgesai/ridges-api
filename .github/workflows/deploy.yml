@@ -51,9 +51,11 @@ jobs:
           sudo curl -Lo /usr/local/bin/copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
           sudo chmod +x /usr/local/bin/copilot
 
-      - name: Deploy with AWS Copilot
+      - name: Deploy with AWS Copilot (blue/green)
         run: |
           copilot svc deploy \
             --name $SERVICE_NAME \
             --env  $ENV_NAME \
-            --tag  ${{ steps.vars.outputs.TAG }} 
+            --tag  ${{ steps.vars.outputs.TAG }} \
+            --strategy bg \
+            --approve 
