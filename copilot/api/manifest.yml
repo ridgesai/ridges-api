@@ -53,8 +53,3 @@ variables:
   AWS_MASTER_PASSWORD: '>~AIQ?nLu>ksrI5rTpt[1gb:k.a|'
   AWS_RDS_PLATFORM_DB_NAME: platform_db
   PYTHONUNBUFFERED: '1'
-
-deployment:
-  rolling:
-    max_percent: 200    # allow 1 old + 1 new when count=1
-    min_healthy_percent: 100  # keep all existing tasks healthy during deploy
