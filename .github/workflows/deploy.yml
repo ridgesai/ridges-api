@@ -48,7 +48,7 @@ jobs:
 
       - name: Install AWS Copilot CLI
         run: |
-          sudo curl -Lo /usr/local/bin/copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux-x86_64
+          sudo curl -Lo /usr/local/bin/copilot https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
           sudo chmod +x /usr/local/bin/copilot
 
       - name: Deploy with AWS Copilot
