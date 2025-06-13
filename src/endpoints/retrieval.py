@@ -88,11 +88,6 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
         max_miners=max_miners
     )
 
-
-    for miner in miners:
-        print(miner['average_score'])
-        print(miner['response_count'])
-
     if not miners:
         raise HTTPException(
             status_code=404,
