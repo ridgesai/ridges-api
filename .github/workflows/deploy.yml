@@ -1,0 +1,54 @@
+name: Build & Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO: 160684124315.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/ridges-api
+  SERVICE_NAME: api
+  ENV_NAME: prod
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write  # GitHub OIDC for AWS
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::160684124315:role/github-actions-ridges-api
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Derive image tag from commit SHA
+        id: vars
+        run: echo "TAG=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push multi-architecture image
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t $ECR_REPO:${{ steps.vars.outputs.TAG }} \
+            -t $ECR_REPO:latest \
+            --push .
+
+      - name: Deploy with AWS Copilot
+        run: |
+          npx --yes aws-copilot-cli@latest deploy \
+            --name $SERVICE_NAME \
+            --env  $ENV_NAME \
+            --image $ECR_REPO:${{ steps.vars.outputs.TAG }} 
