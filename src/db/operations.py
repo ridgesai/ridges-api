@@ -307,8 +307,58 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting codegen challenges: {str(e)}")
             return []
+        
+    def get_codegen_challenge_responses(self, challenge_id: str) -> List[CodegenResponse]:
+        """Retrieve a codegen challenge response from the database (AWS Postgres RDS).
+        Returns a list of dictionaries containing the response.
+        Only returns responses that have been evaluated (evaluated=true) and have a non-null score.
+        """
+        try:
+            with self.conn:
+                with self.conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT 
+                            r.miner_hotkey,
+                            r.node_id,
+                            r.processing_time,
+                            r.received_at,
+                            r.completed_at,
+                            r.evaluated,
+                            r.score,
+                            r.evaluated_at,
+                            cr.response_patch
+                        FROM responses r
+                        JOIN codegen_responses cr 
+                            ON r.challenge_id = cr.challenge_id 
+                            AND r.miner_hotkey = cr.miner_hotkey
+                        WHERE r.challenge_id = %s
+                            AND r.evaluated = TRUE
+                            AND r.score IS NOT NULL
+                        ORDER BY r.completed_at DESC
+                    """, (challenge_id,))
+                    rows = cursor.fetchall()
+                    
+                    responses = []
+                    for row in rows:
+                        response_dict = {
+                            'challenge_id': challenge_id,
+                            'miner_hotkey': row[0],
+                            'node_id': row[1],
+                            'processing_time': row[2],
+                            'received_at': row[3],
+                            'completed_at': row[4],
+                            'evaluated': row[5],
+                            'score': row[6],
+                            'evaluated_at': row[7],
+                            'response_patch': row[8]
+                        }
+                        responses.append(CodegenResponse(**response_dict))
+                    return responses
+        except Exception as e:
+            print(f"Error getting codegen challenge response: {str(e)}")
+            return []
 
-    def get_codegen_challenge_responses(self, challenge_id: str = None, miner_hotkey: str = None, min_score: float = 0, min_response_count: int = 0, sort_by_score: bool = False, max_miners: int = 5, hours: int = 24) -> List[Dict]:
+    def get_miner_responses(self, challenge_id: str = None, miner_hotkey: str = None, min_score: float = 0, min_response_count: int = 0, sort_by_score: bool = False, max_miners: int = 5, hours: int = 24) -> List[Dict]:
         """Retrieve codegen responses from the database (AWS Postgres RDS).
         Returns a list of dictionaries containing miner information and their responses.
         Only includes responses where evaluated is TRUE and score is not NULL.
