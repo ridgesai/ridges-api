@@ -4,11 +4,15 @@ from psycopg2 import pool
 from dotenv import load_dotenv
 import json
 from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, ValidatorVersion, Score, Agent
+from src.utils.cache import cached, cache_manager, invalidate_cache_pattern
 from typing import List, Dict
 import threading
 import atexit
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     _instance = None
@@ -99,6 +103,10 @@ class DatabaseManager:
                         challenge.commit_hash,
                         json.dumps(challenge.context_file_paths)
                     ))
+            
+            # Invalidate related caches when new data is added
+            invalidate_cache_pattern("challenges")
+            
             return 1
         except Exception as e:
             print(f"Error storing codegen challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
@@ -142,6 +150,11 @@ class DatabaseManager:
                         challenge.commit_hash,
                         json.dumps(challenge.context_file_paths)
                     ))
+            
+            # Invalidate related caches when new data is added  
+            invalidate_cache_pattern("challenges")
+            invalidate_cache_pattern("challenge_")
+            
             return 1
         except Exception as e:
             print(f"Error storing regression challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
@@ -194,6 +207,11 @@ class DatabaseManager:
                         response.miner_hotkey,
                         response.response_patch
                     ))
+            
+            # Invalidate caches when responses are updated
+            invalidate_cache_pattern("challenge_responses")
+            invalidate_cache_pattern("miner_responses")
+            
             return 1
         except Exception as e:
             print(f"Error storing codegen response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
@@ -245,6 +263,11 @@ class DatabaseManager:
                         response.miner_hotkey,
                         response.response_patch
                     ))
+            
+            # Invalidate caches when responses are updated
+            invalidate_cache_pattern("challenge_responses")
+            invalidate_cache_pattern("miner_responses")
+            
             return 1
         except Exception as e:
             print(f"Error storing regression response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
@@ -304,11 +327,13 @@ class DatabaseManager:
             if conn:
                 self.return_connection(conn)
 
+    @cached("challenges")
     def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
         """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
         Returns a list of dicts matching the original output format.
         response_count only includes responses where evaluated is TRUE and score is not NULL.
         """
+        logger.debug(f"Fetching codegen challenges from database (challenge_id={challenge_id})")
         conn = None
         try:
             conn = self.get_connection()
@@ -383,11 +408,13 @@ class DatabaseManager:
             if conn:
                 self.return_connection(conn)
         
+    @cached("challenge_responses")
     def get_codegen_challenge_responses(self, challenge_id: str) -> List[CodegenResponse]:
         """Retrieve a codegen challenge response from the database (AWS Postgres RDS).
         Returns a list of dictionaries containing the response.
         Only returns responses that have been evaluated (evaluated=true) and have a non-null score.
         """
+        logger.debug(f"Fetching challenge responses from database (challenge_id={challenge_id})")
         conn = None
         try:
             conn = self.get_connection()
@@ -437,6 +464,7 @@ class DatabaseManager:
             if conn:
                 self.return_connection(conn)
 
+    @cached("miner_responses")
     def get_miner_responses(self, challenge_id: str = None, miner_hotkey: str = None, min_score: float = 0, min_response_count: int = 0, sort_by_score: bool = False, max_miners: int = 5, hours: int = 24) -> List[Dict]:
         """Retrieve codegen responses from the database (AWS Postgres RDS).
         Returns a list of dictionaries containing miner information and their responses.
@@ -449,6 +477,7 @@ class DatabaseManager:
         - max_miners: Maximum number of miners to return
         - hours: Number of hours to look back (-1 for all time)
         """
+        logger.debug(f"Fetching miner responses from database (challenge_id={challenge_id}, miner_hotkey={miner_hotkey}, params=min_score:{min_score},count:{min_response_count},sort:{sort_by_score},max:{max_miners},hours:{hours})")
         conn = None
         try:
             conn = self.get_connection()

@@ -4,6 +4,7 @@ import logging
 from typing import Optional
 
 from src.utils.auth import verify_request
+from src.utils.cache import cache_manager, invalidate_cache_pattern
 from src.db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -132,6 +133,41 @@ async def get_single_miner_responses(miner_hotkey: str):
         }
     }
 
+async def get_cache_stats():
+    """Get cache statistics for monitoring."""
+    stats = cache_manager.get_stats()
+    return {
+        "status": "success",
+        "message": "Cache statistics retrieved successfully",
+        "cache_stats": stats
+    }
+
+async def clear_cache():
+    """Clear all cache entries (admin endpoint)."""
+    cache_manager.clear()
+    return {
+        "status": "success",
+        "message": "Cache cleared successfully"
+    }
+
+async def invalidate_cache(pattern: str):
+    """Invalidate cache entries matching a pattern."""
+    if not pattern or len(pattern) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "status": "fail",
+                "message": "Pattern must be at least 3 characters long"
+            }
+        )
+    
+    count = invalidate_cache_pattern(pattern)
+    return {
+        "status": "success",
+        "message": f"Invalidated {count} cache entries matching pattern: {pattern}",
+        "invalidated_count": count
+    }
+
 router = APIRouter()
 
 routes = [
@@ -139,6 +175,13 @@ routes = [
     ("/codegen-challenges", get_codegen_challenges),
     ("/miner-responses", get_miner_responses),
     ("/single-miner-responses", get_single_miner_responses),
+]
+
+# Cache management routes (admin endpoints)
+cache_routes = [
+    ("/cache/stats", get_cache_stats),
+    ("/cache/clear", clear_cache),
+    ("/cache/invalidate", invalidate_cache),
 ]
 
 for path, endpoint in routes:
@@ -149,3 +192,33 @@ for path, endpoint in routes:
         dependencies=[Depends(verify_request)],
         methods=["GET"]
     )
+
+# Add cache management routes
+for path, endpoint in cache_routes:
+    # Get cache stats endpoint
+    if "stats" in path:
+        router.add_api_route(
+            path,
+            endpoint,
+            tags=["cache"],
+            dependencies=[Depends(verify_request)],
+            methods=["GET"]
+        )
+    # Clear cache endpoint  
+    elif "clear" in path:
+        router.add_api_route(
+            path,
+            endpoint,
+            tags=["cache"],
+            dependencies=[Depends(verify_request)],
+            methods=["POST"]
+        )
+    # Invalidate cache endpoint
+    elif "invalidate" in path:
+        router.add_api_route(
+            path,
+            endpoint,
+            tags=["cache"],
+            dependencies=[Depends(verify_request)],
+            methods=["POST"]
+        )
