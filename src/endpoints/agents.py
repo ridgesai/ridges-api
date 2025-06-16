@@ -15,7 +15,7 @@ async def embedding(input: str):
     
     return embedding
 
-async def inference(input_text: str = None, input_code: str = None, return_text: bool = False, return_code: bool = False, model: str = None):
+async def inference(challenge_id: str, miner_hotkey: str, input_text: str = None, input_code: str = None, return_text: bool = False, return_code: bool = False, model: str = None):
 
     if not input_text and not input_code:
         raise HTTPException(status_code=400, detail="Either input_text or input_code must be provided.")
@@ -24,7 +24,7 @@ async def inference(input_text: str = None, input_code: str = None, return_text:
         raise HTTPException(status_code=400, detail="Either return_text or return_code must be True.")
 
     try:
-        return await chutes.inference(input_text, input_code, return_text, return_code, model)
+        return await chutes.inference(challenge_id, miner_hotkey, input_text, input_code, return_text, return_code, model)
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to get inference due to internal server error. Please try again later.")

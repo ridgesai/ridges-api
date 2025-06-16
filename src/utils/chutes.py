@@ -2,14 +2,42 @@ import os
 import dotenv
 import requests
 import aiohttp
-import json
-from typing import Any
+import json 
+from datetime import datetime, timedelta
+import asyncio
+
+from src.utils.config import MODEL_PRICE_PER_1M_TOKENS
 
 dotenv.load_dotenv()
 
 class ChutesManager:
     def __init__(self):
         self.api_key = os.getenv('CHUTES_API_KEY')
+        self.pricing = MODEL_PRICE_PER_1M_TOKENS
+        self.costs_data = {}
+        self.cleanup_task = None
+        self.start_cleanup_task()
+
+    def start_cleanup_task(self):
+        """Start the periodic cleanup task to remove cost data that is older than 15 minutes"""
+        async def cleanup_loop():
+            while True:
+                await self.cleanup_old_entries()
+                await asyncio.sleep(300)
+        
+        self.cleanup_task = asyncio.create_task(cleanup_loop())
+
+    async def cleanup_old_entries(self):
+        """Remove cost data that is older than 15 minutes"""
+        current_time = datetime.now()
+        keys_to_remove = []
+        
+        for key, value in self.costs_data.items():
+            if current_time - value["started_at"] > timedelta(minutes=15):
+                keys_to_remove.append(key)
+        
+        for key in keys_to_remove:
+            del self.costs_data[key]
 
     def embed(self, prompt: str) -> dict:
         headers = {
@@ -29,9 +57,15 @@ class ChutesManager:
 
         return response.json()
     
-    async def inference(self, text_input: str, code_input: str, return_text: bool, return_code: bool, model: str = "deepseek-ai/DeepSeek-V3-0324"):
+    async def inference(self, challenge_id: str, miner_hotkey: str, text_input: str, code_input: str, return_text: bool, return_code: bool, model: str = "deepseek-ai/DeepSeek-V3-0324"):
         if not model:
             model = "deepseek-ai/DeepSeek-V3-0324"
+
+        if model not in self.pricing:
+            return f"Model {model} not supported"
+        
+        if self.costs_data.get(challenge_id + miner_hotkey, {}).get("spend", 0) >= 2:
+            return f"Miner {miner_hotkey} has reached the maximum cost for challenge {challenge_id}"
         
         headers = {
             "Authorization": "Bearer " + self.api_key,
@@ -73,6 +107,7 @@ class ChutesManager:
                 "content": f"Here is the code input:\n\n```\n{code_input}\n```"
             })
 
+        # TODO: Fix this: don't use streaming, validate code
         response_chunks = []
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -88,8 +123,20 @@ class ChutesManager:
                             break
                         try:
                             chunk = data.strip()
-                            if json.loads(chunk)['choices'][0]['delta']['content']:
-                                response_chunks.append(json.loads(chunk)['choices'][0]['delta']['content'])
+                            chunk_json = json.loads(chunk)
+                            if chunk_json['choices'][0]['delta']['content']:
+                                response_chunks.append(chunk_json['choices'][0]['delta']['content'])
+                            elif chunk_json['usage']['total_tokens']:
+                                total_tokens = chunk_json['usage']['total_tokens']
+                                total_cost = total_tokens * self.pricing[model] / 1000000
+                                key = challenge_id + miner_hotkey
+                                self.costs_data[key] = {
+                                    "spend": self.costs_data.get(key, {}).get("spend", 0) + total_cost,
+                                    "started_at": self.costs_data.get(key, {}).get("started_at", datetime.now())
+                                }
+                                for key, value in self.costs_data.items():
+                                    print(f"{key}: {value}")
+
                         except Exception as e:
                             print(f"Error parsing chunk: {e}")
         
