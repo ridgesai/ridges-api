@@ -8,6 +8,7 @@ from src.db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
+# Global database manager instance (singleton)
 db = DatabaseManager()
 
 async def post_codegen_challenges(data: List[CodegenChallenge], validator_hotkey: str = "LEGACY VALIDATOR", validator_version: str = "LEGACY"):

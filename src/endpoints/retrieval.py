@@ -8,6 +8,7 @@ from src.db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
+# Global database manager instance (singleton)
 db = DatabaseManager()
 
 async def get_codegen_challenge(challenge_id: str):

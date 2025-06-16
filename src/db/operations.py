@@ -1,35 +1,78 @@
 import os
 import psycopg2
+from psycopg2 import pool
 from dotenv import load_dotenv
 import json
 from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, ValidatorVersion, Score, Agent
 from typing import List, Dict
+import threading
+import atexit
 
 load_dotenv()
 
 class DatabaseManager:
-    def __init__(self):
-        self.conn = psycopg2.connect(
-            host=os.getenv('AWS_RDS_PLATFORM_ENDPOINT'),
-            user=os.getenv('AWS_MASTER_USERNAME'),
-            password=os.getenv('AWS_MASTER_PASSWORD'),
-            database=os.getenv('AWS_RDS_PLATFORM_DB_NAME'),
-            sslmode='require'
-        )
-        self.conn.autocommit = True
+    _instance = None
+    _lock = threading.Lock()
+    _pool = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(DatabaseManager, cls).__new__(cls)
+                    cls._instance._initialize_pool()
+        return cls._instance
+
+    def _initialize_pool(self):
+        """Initialize the connection pool."""
+        try:
+            self._pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=20,
+                host=os.getenv('AWS_RDS_PLATFORM_ENDPOINT'),
+                user=os.getenv('AWS_MASTER_USERNAME'),
+                password=os.getenv('AWS_MASTER_PASSWORD'),
+                database=os.getenv('AWS_RDS_PLATFORM_DB_NAME'),
+                sslmode='require'
+            )
+            # Register cleanup function
+            atexit.register(self.close_all_connections)
+        except Exception as e:
+            print(f"Error initializing connection pool: {str(e)}")
+            raise
+
+    def get_connection(self):
+        """Get a connection from the pool."""
+        if self._pool is None:
+            raise Exception("Connection pool not initialized")
+        return self._pool.getconn()
+
+    def return_connection(self, conn):
+        """Return a connection to the pool."""
+        if self._pool is None:
+            return
+        self._pool.putconn(conn)
+
+    def close_all_connections(self):
+        """Close all connections in the pool."""
+        if self._pool:
+            self._pool.closeall()
+            self._pool = None
 
     def close(self):
-        if self.conn:
-            self.conn.close()
+        """Deprecated method for backward compatibility."""
+        pass
 
     def store_codegen_challenge(self, challenge: CodegenChallenge) -> int:
         """Store a codegen challenge in the database (AWS Postgres RDS).
         This stores the challenge in both the challenges and codegen_challenges tables.
         Returns 1 on success, 0 on failure.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            conn.autocommit = True
+            with conn.cursor() as cursor:
                     # Insert into challenges table
                     cursor.execute("""
                         INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
@@ -60,15 +103,20 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing codegen challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
             return 0
+        finally:
+            if conn:
+                self.return_connection(conn)
 
     def store_regression_challenge(self, challenge: RegressionChallenge) -> int:
         """Store a regression challenge in the database (AWS Postgres RDS).
         This stores the challenge in both the challenges and regression_challenges tables.
         Returns 1 on success, 0 on failure.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            conn.autocommit = True
+            with conn.cursor() as cursor:
                     # Insert into challenges table
                     cursor.execute("""
                         INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
@@ -98,6 +146,9 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing regression challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
             return 0
+        finally:
+            if conn:
+                self.return_connection(conn)
 
     def store_codegen_response(self, response: CodegenResponse) -> int:
         """Store a codegen response in the database (AWS Postgres RDS).
@@ -105,9 +156,11 @@ class DatabaseManager:
         On conflict, only updates evaluation-related fields (evaluated, score, evaluated_at).
         Returns 1 on success, 0 on failure.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            conn.autocommit = True
+            with conn.cursor() as cursor:
                     # Insert or update into responses table
                     cursor.execute("""
                         INSERT INTO responses (
@@ -145,15 +198,20 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing codegen response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
             return 0
+        finally:
+            if conn:
+                self.return_connection(conn)
 
     def store_regression_response(self, response: RegressionResponse) -> int:
         """Store a regression response in the database (AWS Postgres RDS).
         This stores the response in both the responses and regression_responses tables.
         Returns 1 on success, 0 on failure.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            conn.autocommit = True
+            with conn.cursor() as cursor:
                     # Insert into responses table
                     cursor.execute("""
                         INSERT INTO responses (
@@ -191,14 +249,19 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing regression response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
             return 0
+        finally:
+            if conn:
+                self.return_connection(conn)
 
     def store_validator_version(self, validator_version: ValidatorVersion) -> int:
         """Store a validator version in the database (AWS Postgres RDS).
         Returns 1 on success, 0 on failure.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            conn.autocommit = True
+            with conn.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO validator_versions (validator_hotkey, version, timestamp)
                         VALUES (%s, %s, %s)
@@ -211,14 +274,19 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error storing validator version {getattr(validator_version, 'version', None)} for validator {getattr(validator_version, 'validator_hotkey', None)}: {str(e)}")
             return 0
+        finally:
+            if conn:
+                self.return_connection(conn)
 
     def store_scores(self, scores: List[Score]) -> None:
         """Store multiple scores in the database (AWS Postgres RDS).
         Uses a single INSERT statement with multiple VALUES for optimal performance.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            conn.autocommit = True
+            with conn.cursor() as cursor:
                     values_template = "(%s, %s, %s, %s, %s)"
                     values_list = [
                         (score.type, score.validator_hotkey, score.miner_hotkey, score.score, score.challenge_id)
@@ -232,15 +300,19 @@ class DatabaseManager:
                     cursor.execute(query, flat_values)
         except Exception as e:
             print(f"Error storing scores: {str(e)}")
+        finally:
+            if conn:
+                self.return_connection(conn)
 
     def get_codegen_challenges(self, challenge_id: str = None) -> List[Dict]:
         """Retrieve codegen challenges from the database (AWS Postgres RDS), including response_count for each challenge.
         Returns a list of dicts matching the original output format.
         response_count only includes responses where evaluated is TRUE and score is not NULL.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            with conn.cursor() as cursor:
                     if challenge_id:
                         cursor.execute("""
                             SELECT 
@@ -307,15 +379,19 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting codegen challenges: {str(e)}")
             return []
+        finally:
+            if conn:
+                self.return_connection(conn)
         
     def get_codegen_challenge_responses(self, challenge_id: str) -> List[CodegenResponse]:
         """Retrieve a codegen challenge response from the database (AWS Postgres RDS).
         Returns a list of dictionaries containing the response.
         Only returns responses that have been evaluated (evaluated=true) and have a non-null score.
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            with conn.cursor() as cursor:
                     cursor.execute("""
                         SELECT 
                             r.miner_hotkey,
@@ -357,6 +433,9 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting codegen challenge response: {str(e)}")
             return []
+        finally:
+            if conn:
+                self.return_connection(conn)
 
     def get_miner_responses(self, challenge_id: str = None, miner_hotkey: str = None, min_score: float = 0, min_response_count: int = 0, sort_by_score: bool = False, max_miners: int = 5, hours: int = 24) -> List[Dict]:
         """Retrieve codegen responses from the database (AWS Postgres RDS).
@@ -370,9 +449,10 @@ class DatabaseManager:
         - max_miners: Maximum number of miners to return
         - hours: Number of hours to look back (-1 for all time)
         """
+        conn = None
         try:
-            with self.conn:
-                with self.conn.cursor() as cursor:
+            conn = self.get_connection()
+            with conn.cursor() as cursor:
                     # Base query with optimized structure
                     base_query = """
                         WITH RECURSIVE time_bucket AS (
@@ -479,4 +559,7 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error getting codegen challenge responses: {str(e)}")
             return []
+        finally:
+            if conn:
+                self.return_connection(conn)
 
