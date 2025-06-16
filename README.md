@@ -32,6 +32,21 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   -t 160684124315.dkr.ecr.us-east-1.amazonaws.com/ridges-api:$BRANCH_TAG \
   --push .
 
+> **Troubleshooting — 403 Forbidden while pushing?**
+> ECR login tokens last 12 hours. If the build fails with `403 Forbidden` or
+> `unexpected status from HEAD request`, refresh your Docker login then rerun
+> the build:
+>
+> ```bash
+> aws ecr get-login-password --region us-east-1 \
+> | docker login --username AWS --password-stdin 160684124315.dkr.ecr.us-east-1.amazonaws.com
+>
+> # retry
+> docker buildx build --platform linux/amd64,linux/arm64 \
+>   -t 160684124315.dkr.ecr.us-east-1.amazonaws.com/ridges-api:$BRANCH_TAG \
+>   --push .
+> ```
+
 # 1. SSH into prod
 ssh -i ~/.ssh/ridges-ssh.pem ubuntu@<PROD_PUBLIC_IP>
 
