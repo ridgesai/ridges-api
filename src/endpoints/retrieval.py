@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 import logging
 import boto3
 import os
 from dotenv import load_dotenv
+from typing import List
 
 from src.utils.auth import verify_request
 from src.db.operations import DatabaseManager
@@ -238,17 +239,6 @@ async def get_agent_file(agent_id: str):
             }
         )
 
-async def get_embedding(input: str):
-    embedding = chutes.embed(input)
-
-    return {
-        "status": "success",
-        "message": "Embedding retrieved successfully",
-        "details": {
-            "embedding": embedding
-        }
-    }
-    
 router = APIRouter()
 
 routes = [
@@ -258,7 +248,6 @@ routes = [
     ("/agent-list", get_agent_list),
     ("/agent-code", get_agent_code),
     ("/agent-file", get_agent_file),
-    ("/embed", get_embedding),
 ]
 
 for path, endpoint in routes:

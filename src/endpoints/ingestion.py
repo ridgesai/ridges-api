@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from src.utils.config import PROBLEM_TYPES, PERMISSABLE_PACKAGES
 from src.utils.auth import verify_request
-from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
+from src.utils.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
 from src.db.operations import DatabaseManager
 
 logger = logging.getLogger(__name__)

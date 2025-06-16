@@ -2,7 +2,7 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 import json
-from src.db.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, ValidatorVersion, Score, Agent
+from src.utils.models import CodegenChallenge, RegressionChallenge, CodegenResponse, RegressionResponse, ValidatorVersion, Score, Agent
 from typing import List, Dict
 
 load_dotenv()
