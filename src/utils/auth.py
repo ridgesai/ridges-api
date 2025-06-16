@@ -1,4 +1,4 @@
-from fastapi import Request, Header, HTTPException
+from fastapi import Request, Header, HTTPException, Depends
 from fiber import constants as cst
 from fiber import utils
 from fiber.chain.signatures import get_hash, verify_signature
@@ -7,10 +7,10 @@ from fiber.miner.security.nonce_management import NonceManager
 # Create a single NonceManager instance that can be reused
 nonce_manager = None
 
-def get_config():
+def get_nonce_manager():
+    global nonce_manager
     if nonce_manager is None:
         nonce_manager = NonceManager()
-    
     return nonce_manager
 
 async def verify_request(
@@ -19,7 +19,7 @@ async def verify_request(
     signature: str = Header(..., alias=cst.SIGNATURE),
     miner_hotkey: str = Header(..., alias=cst.MINER_HOTKEY),
     nonce: str = Header(..., alias=cst.NONCE),
-    nonce_manager: NonceManager = get_config()
+    nonce_manager: NonceManager = Depends(get_nonce_manager)
 ):
     if not nonce_manager.nonce_is_valid(nonce):
         raise HTTPException(
