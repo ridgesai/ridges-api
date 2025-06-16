@@ -189,7 +189,6 @@ for path, endpoint in routes:
         path,
         endpoint,
         tags=["retrieval"],
-        dependencies=[Depends(verify_request)],
         methods=["GET"]
     )
 
@@ -201,7 +200,6 @@ for path, endpoint in cache_routes:
             path,
             endpoint,
             tags=["cache"],
-            dependencies=[Depends(verify_request)],
             methods=["GET"]
         )
     # Clear cache endpoint  
@@ -210,7 +208,6 @@ for path, endpoint in cache_routes:
             path,
             endpoint,
             tags=["cache"],
-            dependencies=[Depends(verify_request)],
             methods=["POST"]
         )
     # Invalidate cache endpoint
@@ -219,6 +216,5 @@ for path, endpoint in cache_routes:
             path,
             endpoint,
             tags=["cache"],
-            dependencies=[Depends(verify_request)],
             methods=["POST"]
         )
