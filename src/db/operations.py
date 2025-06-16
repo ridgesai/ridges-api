@@ -284,6 +284,42 @@ class DatabaseManager:
             print(f"Error storing agent {getattr(agent, 'agent_id', None)}: {str(e)}")
             return 0
         
+    def get_agents(self, type: str = None) -> List[Agent]:
+        """Retrieve all agents from the database (AWS Postgres RDS).
+        Returns a list of Agent objects.
+        """
+        conn = self.get_connection()
+        try:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT * FROM agents
+                    """)
+                    if type:
+                        cursor.execute("""
+                            SELECT * FROM agents WHERE type = %s
+                        """, (type,))
+                    else:
+                        cursor.execute("""
+                            SELECT * FROM agents
+                        """)
+                    rows = cursor.fetchall()
+                    return [
+                        Agent(
+                            agent_id=row[0],
+                            miner_hotkey=row[1], 
+                            created_at=row[2],
+                            last_updated=row[3],
+                            type=row[4],
+                            version=row[5],
+                            elo=row[6],
+                            num_responses=row[7]
+                        ) 
+                        for row in rows]
+        except Exception as e:
+            print(f"Error getting agents: {str(e)}")
+            return []
+        
     def get_agent(self, agent_id: str) -> Agent:
         """Retrieve an agent from the database (AWS Postgres RDS).
         Returns an Agent object.

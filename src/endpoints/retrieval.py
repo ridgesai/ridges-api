@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from src.utils.auth import verify_request
 from src.db.operations import DatabaseManager
+from src.utils.config import PROBLEM_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,40 @@ async def get_miner_responses(min_score: float = 0, min_response_count: int = 0,
         "miners": miners
     }
 
+async def get_agent_list(type: str = None):
+    if type and type not in PROBLEM_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Type must be one of " + ", ".join(PROBLEM_TYPES)
+        )
+
+    if type:
+        agents = db.get_agents(type=type)
+    else:
+        agents = db.get_agents()
+
+    if not agents:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "status": "fail",
+                "message": "No agents found",
+                "details": {
+                    "agent_count": 0,
+                    "agents": []
+                }
+            }
+        )
+    
+    return {
+        "status": "success",
+        "message": "Agents retrieved successfully",
+        "details": {
+            "agent_count": len(agents),
+            "agents": agents
+        }
+    }
+
 async def get_agent_code(agent_id: str):
     agent = db.get_agent(agent_id)
     
@@ -217,6 +252,7 @@ routes = [
     ("/codegen-challenge", get_codegen_challenge),
     ("/codegen-challenges", get_codegen_challenges),
     ("/miner-responses", get_miner_responses),
+    ("/agent-list", get_agent_list),
     ("/agent-code", get_agent_code),
     ("/agent-file", get_agent_file),
 ]
