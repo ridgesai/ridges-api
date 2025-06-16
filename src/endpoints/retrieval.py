@@ -8,10 +8,12 @@ from dotenv import load_dotenv
 from src.utils.auth import verify_request
 from src.db.operations import DatabaseManager
 from src.utils.config import PROBLEM_TYPES
+from src.utils.chutes import ChutesManager
 
 logger = logging.getLogger(__name__)
 
 db = DatabaseManager()
+chutes = ChutesManager()
 
 load_dotenv()
 s3_bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
@@ -235,16 +237,17 @@ async def get_agent_file(agent_id: str):
                 }
             }
         )
-    
-    return StreamingResponse(
-        agent_object['Body'],
-        media_type="text/plain",
-        headers={
-            "Content-Disposition": f'attachment; filename="agent.py"',
-            "X-Message": "Agent file retrieved successfully",
-            "X-Agent-ID": agent_id
+
+async def get_embedding(input: str):
+    embedding = chutes.embed(input)
+
+    return {
+        "status": "success",
+        "message": "Embedding retrieved successfully",
+        "details": {
+            "embedding": embedding
         }
-    )
+    }
     
 router = APIRouter()
 
@@ -255,6 +258,7 @@ routes = [
     ("/agent-list", get_agent_list),
     ("/agent-code", get_agent_code),
     ("/agent-file", get_agent_file),
+    ("/embed", get_embedding),
 ]
 
 for path, endpoint in routes:
