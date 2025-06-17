@@ -238,6 +238,8 @@ async def get_agent_file(agent_id: str):
                 }
             }
         )
+    
+    return StreamingResponse(agent_object['Body'], media_type='text/plain')
 
 router = APIRouter()
 
