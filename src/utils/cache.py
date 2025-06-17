@@ -5,13 +5,13 @@ Provides TTL-based caching for database operations to reduce load and improve re
 
 import hashlib
 import json
-import logging
+from src.utils.logging import get_logger
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 from cachetools import TTLCache
 import threading
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class CacheManager:
     """Thread-safe cache manager with TTL support."""
