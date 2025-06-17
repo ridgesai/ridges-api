@@ -8,11 +8,11 @@ from src.utils.cache import cached, cache_manager, invalidate_cache_pattern
 from typing import List, Dict
 import threading
 import atexit
-import logging
+from src.utils.logging import get_logger
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class DatabaseManager:
     _instance = None

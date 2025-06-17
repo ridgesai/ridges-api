@@ -1,12 +1,14 @@
 from typing import List, Union
 from fastapi import APIRouter, Depends, HTTPException
-import logging
+from src.utils.logging import get_logger
 from datetime import datetime
 from src.utils.auth import verify_request
 from src.db.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, ValidatorVersion, Score
 from src.db.operations import DatabaseManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+logger.info("Ingestion endpoint initialized")
 
 # Global database manager instance (singleton)
 db = DatabaseManager()

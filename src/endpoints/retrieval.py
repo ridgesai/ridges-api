@@ -1,13 +1,13 @@
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
-import logging
+from src.utils.logging import get_logger
 from typing import Optional
 
 from src.utils.auth import verify_request
 from src.utils.cache import cache_manager, invalidate_cache_pattern
 from src.db.operations import DatabaseManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Global database manager instance (singleton)
 db = DatabaseManager()
