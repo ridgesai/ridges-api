@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 db = DatabaseManager()
 
 async def post_codegen_challenges(data: List[CodegenChallenge], validator_hotkey: str = "LEGACY VALIDATOR", validator_version: str = "LEGACY"):
+    print(f"Storing {len(data)} codegen challenges")
     details = {
         "total_sent_codegen_challenges": len(data),
         "total_stored_codegen_challenges": 0,
@@ -96,6 +97,7 @@ async def post_regression_challenges(data: List[RegressionChallenge], validator_
     }
 
 async def post_codegen_responses(data: List[CodegenResponse], validator_hotkey: str = "LEGACY VALIDATOR", validator_version: str = "LEGACY"):
+    print(f"Storing {len(data)} codegen responses")
     details = {
         "total_sent_codegen_responses": len(data),
         "total_new_codegen_responses": 0,
