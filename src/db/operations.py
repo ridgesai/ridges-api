@@ -67,115 +67,172 @@ class DatabaseManager:
         """Deprecated method for backward compatibility."""
         pass
 
-    def store_codegen_challenge(self, challenge: CodegenChallenge) -> int:
-        """Store a codegen challenge in the database (AWS Postgres RDS).
-        This stores the challenge in both the challenges and codegen_challenges tables.
+    def store_codegen_challenges(self, challenges: List[CodegenChallenge]) -> int:
+        """Store multiple codegen challenges in the database (AWS Postgres RDS).
+        Uses a single INSERT statement with multiple VALUES for optimal performance.
+        Duplicate entries will be silently ignored.
         Returns 1 on success, 0 on failure.
         """
+        if not challenges:
+            return 0
+
         conn = None
         try:
             conn = self.get_connection()
             conn.autocommit = True
             with conn.cursor() as cursor:
-                    # Insert into challenges table
-                    cursor.execute("""
-                        INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
-                        VALUES (%s, %s, %s, %s)
-                    """, (
-                        challenge.challenge_id,
-                        'codegen',
-                        challenge.validator_hotkey,
-                        challenge.created_at
-                    ))
-
-                    # Insert into codegen_challenges table
-                    cursor.execute("""
-                        INSERT INTO codegen_challenges (
-                            challenge_id, problem_statement, dynamic_checklist,
-                            repository_url, commit_hash, context_file_paths
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (
+                # Prepare data for challenges table
+                challenges_values_template = "(%s, %s, %s, %s)"
+                challenges_values_list = [
+                    (challenge.challenge_id, 'codegen', challenge.validator_hotkey, challenge.created_at)
+                    for challenge in challenges
+                ]
+                challenges_flat_values = [val for tup in challenges_values_list for val in tup]
+                
+                # Prepare data for codegen_challenges table
+                codegen_values_template = "(%s, %s, %s, %s, %s, %s)"
+                codegen_values_list = [
+                    (
                         challenge.challenge_id,
                         challenge.problem_statement,
                         json.dumps(challenge.dynamic_checklist),
                         challenge.repository_url,
                         challenge.commit_hash,
                         json.dumps(challenge.context_file_paths)
-                    ))
+                    )
+                    for challenge in challenges
+                ]
+                codegen_flat_values = [val for tup in codegen_values_list for val in tup]
+
+                # Single INSERT for challenges table
+                challenges_query = f"""
+                    INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
+                    VALUES {','.join([challenges_values_template] * len(challenges))}
+                    ON CONFLICT (challenge_id) DO NOTHING
+                """
+                cursor.execute(challenges_query, challenges_flat_values)
+
+                # Single INSERT for codegen_challenges table
+                codegen_query = f"""
+                    INSERT INTO codegen_challenges (
+                        challenge_id, problem_statement, dynamic_checklist,
+                        repository_url, commit_hash, context_file_paths
+                    )
+                    VALUES {','.join([codegen_values_template] * len(challenges))}
+                    ON CONFLICT (challenge_id) DO NOTHING
+                """
+                cursor.execute(codegen_query, codegen_flat_values)
             
             # Invalidate related caches when new data is added
             invalidate_cache_pattern("challenges")
             
             return 1
         except Exception as e:
-            print(f"Error storing codegen challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
+            print(f"Error storing codegen challenges: {str(e)}")
             return 0
         finally:
             if conn:
                 self.return_connection(conn)
 
-    def store_regression_challenge(self, challenge: RegressionChallenge) -> int:
-        """Store a regression challenge in the database (AWS Postgres RDS).
-        This stores the challenge in both the challenges and regression_challenges tables.
+    def store_regression_challenges(self, challenges: List[RegressionChallenge]) -> int:
+        """Store multiple regression challenges in the database (AWS Postgres RDS).
+        Uses a single INSERT statement with multiple VALUES for optimal performance.
+        Duplicate entries will be silently ignored.
         Returns 1 on success, 0 on failure.
         """
+        if not challenges:
+            return 0
+
         conn = None
         try:
             conn = self.get_connection()
             conn.autocommit = True
             with conn.cursor() as cursor:
-                    # Insert into challenges table
-                    cursor.execute("""
-                        INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
-                        VALUES (%s, %s, %s, %s)
-                    """, (
-                        challenge.challenge_id,
-                        'regression',
-                        challenge.validator_hotkey,
-                        challenge.created_at
-                    ))
-
-                    # Insert into regression_challenges table
-                    cursor.execute("""
-                        INSERT INTO regression_challenges (
-                            challenge_id, problem_statement, repository_url,
-                            commit_hash, context_file_paths
-                        )
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (
+                # Prepare data for challenges table
+                challenges_values_template = "(%s, %s, %s, %s)"
+                challenges_values_list = [
+                    (challenge.challenge_id, 'regression', challenge.validator_hotkey, challenge.created_at)
+                    for challenge in challenges
+                ]
+                challenges_flat_values = [val for tup in challenges_values_list for val in tup]
+                
+                # Prepare data for regression_challenges table
+                regression_values_template = "(%s, %s, %s, %s, %s)"
+                regression_values_list = [
+                    (
                         challenge.challenge_id,
                         challenge.problem_statement,
                         challenge.repository_url,
                         challenge.commit_hash,
                         json.dumps(challenge.context_file_paths)
-                    ))
+                    )
+                    for challenge in challenges
+                ]
+                regression_flat_values = [val for tup in regression_values_list for val in tup]
+
+                # Single INSERT for challenges table
+                challenges_query = f"""
+                    INSERT INTO challenges (challenge_id, type, validator_hotkey, created_at)
+                    VALUES {','.join([challenges_values_template] * len(challenges))}
+                    ON CONFLICT (challenge_id) DO NOTHING
+                """
+                cursor.execute(challenges_query, challenges_flat_values)
+
+                # Single INSERT for regression_challenges table
+                regression_query = f"""
+                    INSERT INTO regression_challenges (
+                        challenge_id, problem_statement,
+                        repository_url, commit_hash, context_file_paths
+                    )
+                    VALUES {','.join([regression_values_template] * len(challenges))}
+                    ON CONFLICT (challenge_id) DO NOTHING
+                """
+                cursor.execute(regression_query, regression_flat_values)
             
-            # Invalidate related caches when new data is added  
+            # Invalidate related caches when new data is added
             invalidate_cache_pattern("challenges")
-            invalidate_cache_pattern("challenge_")
             
             return 1
         except Exception as e:
-            print(f"Error storing regression challenge {getattr(challenge, 'challenge_id', None)}: {str(e)}")
+            print(f"Error storing regression challenges: {str(e)}")
             return 0
         finally:
             if conn:
                 self.return_connection(conn)
 
-    def store_codegen_response(self, response: CodegenResponse) -> int:
-        """Store a codegen response in the database (AWS Postgres RDS).
-        This stores the response in both the responses and codegen_responses tables.
+    def store_codegen_responses(self, responses: List[CodegenResponse]) -> int:
+        """Store multiple codegen responses in the database (AWS Postgres RDS).
+        This stores the responses in both the responses and codegen_responses tables.
         On conflict, only updates evaluation-related fields (evaluated, score, evaluated_at).
+        Uses executemany for better performance.
         Returns 1 on success, 0 on failure.
         """
+        if not responses:
+            return 0
+
         conn = None
         try:
             conn = self.get_connection()
             conn.autocommit = True
             with conn.cursor() as cursor:
+                    # Prepare data for responses table
+                    responses_values = [
+                        (
+                            response.challenge_id,
+                            response.miner_hotkey,
+                            response.node_id,
+                            response.processing_time,
+                            response.received_at,
+                            response.completed_at,
+                            response.evaluated,
+                            response.score,
+                            response.evaluated_at
+                        )
+                        for response in responses
+                    ]
+
                     # Insert or update into responses table
-                    cursor.execute("""
+                    cursor.executemany("""
                         INSERT INTO responses (
                             challenge_id, miner_hotkey, node_id, processing_time,
                             received_at, completed_at, evaluated, score, evaluated_at
@@ -185,28 +242,24 @@ class DatabaseManager:
                             evaluated = EXCLUDED.evaluated,
                             score = EXCLUDED.score,
                             evaluated_at = EXCLUDED.evaluated_at
-                    """, (
-                        response.challenge_id,
-                        response.miner_hotkey,
-                        response.node_id,
-                        response.processing_time,
-                        response.received_at,
-                        response.completed_at,
-                        response.evaluated,
-                        response.score,
-                        response.evaluated_at
-                    ))
+                    """, responses_values)
+
+                    # Prepare data for codegen_responses table
+                    codegen_values = [
+                        (
+                            response.challenge_id,
+                            response.miner_hotkey,
+                            response.response_patch
+                        )
+                        for response in responses
+                    ]
 
                     # Insert into codegen_responses table, ignore on conflict
-                    cursor.execute("""
+                    cursor.executemany("""
                         INSERT INTO codegen_responses (challenge_id, miner_hotkey, response_patch)
                         VALUES (%s, %s, %s)
                         ON CONFLICT (challenge_id, miner_hotkey) DO NOTHING
-                    """, (
-                        response.challenge_id,
-                        response.miner_hotkey,
-                        response.response_patch
-                    ))
+                    """, codegen_values)
             
             # Invalidate caches when responses are updated
             invalidate_cache_pattern("challenge_responses")
@@ -214,24 +267,45 @@ class DatabaseManager:
             
             return 1
         except Exception as e:
-            print(f"Error storing codegen response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
+            print(f"Error storing codegen responses: {str(e)}")
             return 0
         finally:
             if conn:
                 self.return_connection(conn)
 
-    def store_regression_response(self, response: RegressionResponse) -> int:
-        """Store a regression response in the database (AWS Postgres RDS).
-        This stores the response in both the responses and regression_responses tables.
+    def store_regression_responses(self, responses: List[RegressionResponse]) -> int:
+        """Store multiple regression responses in the database (AWS Postgres RDS).
+        This stores the responses in both the responses and regression_responses tables.
+        On conflict, only updates evaluation-related fields (evaluated, score, evaluated_at).
+        Uses executemany for better performance.
         Returns 1 on success, 0 on failure.
         """
+        if not responses:
+            return 0
+
         conn = None
         try:
             conn = self.get_connection()
             conn.autocommit = True
             with conn.cursor() as cursor:
-                    # Insert into responses table
-                    cursor.execute("""
+                    # Prepare data for responses table
+                    responses_values = [
+                        (
+                            response.challenge_id,
+                            response.miner_hotkey,
+                            response.node_id,
+                            response.processing_time,
+                            response.received_at,
+                            response.completed_at,
+                            response.evaluated,
+                            response.score,
+                            response.evaluated_at
+                        )
+                        for response in responses
+                    ]
+
+                    # Insert or update into responses table
+                    cursor.executemany("""
                         INSERT INTO responses (
                             challenge_id, miner_hotkey, node_id, processing_time,
                             received_at, completed_at, evaluated, score, evaluated_at
@@ -241,28 +315,24 @@ class DatabaseManager:
                             evaluated = EXCLUDED.evaluated,
                             score = EXCLUDED.score,
                             evaluated_at = EXCLUDED.evaluated_at
-                    """, (
-                        response.challenge_id,
-                        response.miner_hotkey,
-                        response.node_id,
-                        response.processing_time,
-                        response.received_at,
-                        response.completed_at,
-                        response.evaluated,
-                        response.score,
-                        response.evaluated_at
-                    ))
+                    """, responses_values)
+
+                    # Prepare data for regression_responses table
+                    regression_values = [
+                        (
+                            response.challenge_id,
+                            response.miner_hotkey,
+                            response.response_patch
+                        )
+                        for response in responses
+                    ]
 
                     # Insert into regression_responses table, ignore on conflict
-                    cursor.execute("""
+                    cursor.executemany("""
                         INSERT INTO regression_responses (challenge_id, miner_hotkey, response_patch)
                         VALUES (%s, %s, %s)
                         ON CONFLICT (challenge_id, miner_hotkey) DO NOTHING
-                    """, (
-                        response.challenge_id,
-                        response.miner_hotkey,
-                        response.response_patch
-                    ))
+                    """, regression_values)
             
             # Invalidate caches when responses are updated
             invalidate_cache_pattern("challenge_responses")
@@ -270,7 +340,7 @@ class DatabaseManager:
             
             return 1
         except Exception as e:
-            print(f"Error storing regression response for challenge {getattr(response, 'challenge_id', None)} from miner {getattr(response, 'miner_hotkey', None)}: {str(e)}")
+            print(f"Error storing regression responses: {str(e)}")
             return 0
         finally:
             if conn:
