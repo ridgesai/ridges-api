@@ -239,7 +239,10 @@ async def get_agent_file(agent_id: str):
             }
         )
     
-    return StreamingResponse(agent_object['Body'], media_type='text/plain')
+    headers = {
+        "Content-Disposition": f'attachment; filename="agent.py"'
+    }
+    return StreamingResponse(agent_object['Body'], media_type='application/octet-stream', headers=headers)
 
 router = APIRouter()
 
