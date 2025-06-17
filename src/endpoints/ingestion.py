@@ -13,6 +13,7 @@ from src.utils.config import PROBLEM_TYPES, PERMISSABLE_PACKAGES
 from src.utils.auth import verify_request
 from src.utils.models import CodegenChallenge, CodegenResponse, RegressionChallenge, RegressionResponse, Agent, ValidatorVersion, Score
 from src.db.operations import DatabaseManager
+from src.socket.server import WebSocketServer
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ s3_bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
 print(s3_bucket_name)
 
 db = DatabaseManager()
+server = WebSocketServer()
 
 async def post_codegen_challenges(data: List[CodegenChallenge], validator_hotkey: str = "LEGACY VALIDATOR", validator_version: str = "LEGACY"):
     details = {
@@ -308,6 +310,8 @@ async def post_agent (
             status_code=400,
             detail=f"Failed to store agent in our database"
         )
+
+    await server.send_agent(agent_object)
 
     return {
         "status": "success",
