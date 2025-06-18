@@ -1,6 +1,6 @@
 import asyncio
 import websockets
-from typing import Set
+from typing import Set, Optional
 from src.utils.logging import get_logger
 import json
 from src.socket.server_helpers import update_validator_versions
@@ -8,14 +8,31 @@ from src.socket.server_helpers import update_validator_versions
 logger = get_logger(__name__)
 
 class WebSocketServer:
+    _instance: Optional['WebSocketServer'] = None
+    _initialized: bool = False
+    
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
     def __init__(self, host: str = "0.0.0.0", port: int = 8765):
-        self.host = host
-        self.port = port
-        self.uri = f"ws://{host}:{port}"
-        self.clients: Set[websockets.WebSocketClientProtocol] = set()
-        self.server = None
-        self.validator_versions: dict = {}
-        asyncio.create_task(self.start())
+        if not self._initialized:
+            self.host = host
+            self.port = port
+            self.uri = f"ws://{host}:{port}"
+            self.clients: Set[websockets.WebSocketClientProtocol] = set()
+            self.server = None
+            self.validator_versions: dict = {}
+            self._initialized = True
+            asyncio.create_task(self.start())
+    
+    @classmethod
+    def get_instance(cls) -> 'WebSocketServer':
+        """Get the singleton instance of WebSocketServer"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
     
     async def handle_connection(self, websocket):
         # Add new client to the set
