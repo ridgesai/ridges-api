@@ -11,15 +11,15 @@ from dotenv import load_dotenv
 
 from src.utils.config import PROBLEM_TYPES, PERMISSABLE_PACKAGES
 from src.utils.auth import verify_request
-from src.utils.models import Agent
+from src.utils.models import Agent, AgentVersion
 from src.db.operations import DatabaseManager
 from src.socket.server import WebSocketServer
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
 s3_bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
-print(s3_bucket_name)
 
 db = DatabaseManager()
 server = WebSocketServer()
@@ -28,7 +28,7 @@ async def post_agent (
     agent_file: UploadFile = File(...),
     miner_hotkey: str = None,
 ):
-    # TODO:Check if miner already has an agent qued, if so, rate limit the miner
+    # TODO: Check if miner already has an agent queued, if so, rate limit the miner
 
     # Check if miner_hotkey is provided
     if not miner_hotkey:
@@ -59,6 +59,7 @@ async def post_agent (
     # Reset file pointer
     await agent_file.seek(0)
     
+    # Check if file is a valid python file
     try:
         # Parse the file content
         tree = ast.parse(content.decode('utf-8'))
@@ -114,11 +115,12 @@ async def post_agent (
     existing_agent = db.get_agent(miner_hotkey)
         
     agent_id = str(uuid.uuid4()) if not existing_agent else existing_agent.agent_id
+    version_id = str(uuid.uuid4())
     
     s3_client = boto3.client('s3')
 
     try:
-        s3_client.upload_fileobj(agent_file.file, s3_bucket_name, f"{agent_id}/agent.py")
+        s3_client.upload_fileobj(agent_file.file, s3_bucket_name, f"{version_id}/agent.py")
     except Exception as e:
         print(e)
         raise HTTPException(
@@ -129,15 +131,29 @@ async def post_agent (
     agent_object = Agent(
         agent_id=agent_id,
         miner_hotkey=existing_agent.miner_hotkey if existing_agent else miner_hotkey,
+        latest_version=existing_agent.latest_version + 1 if existing_agent else 0,
         created_at=existing_agent.created_at if existing_agent else datetime.now(),
         last_updated=datetime.now(),
-        latest_version_id=existing_agent.latest_version_id + 1 if existing_agent else 0,
     )
     result = db.store_agent(agent_object)
     if result == 0:
         raise HTTPException(
             status_code=400,
             detail=f"Failed to store agent in our database"
+        )
+    
+    agent_version_object = AgentVersion(
+        version_id=version_id,
+        agent_id=agent_id,
+        version_num=agent_object.latest_version,
+        created_at=datetime.now(),
+        score=None
+    )
+    result = db.store_agent_version(agent_version_object)
+    if result == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to store agent version in our database"
         )
 
     await server.send_agent(agent_object)
@@ -147,7 +163,7 @@ async def post_agent (
         "details": {
             "agent_id": agent_id,
         },
-        "message": f"Successfully updated agent {agent_id}" if existing_agent else f"Successfully created agent {agent_id}"
+        "message": f"Successfully updated agent {agent_id} to version {agent_object.latest_version}" if existing_agent else f"Successfully created agent {agent_id} with version {agent_object.latest_version}"
     }
 
 router = APIRouter()

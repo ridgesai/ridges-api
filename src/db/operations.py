@@ -1,11 +1,12 @@
 import os
 import psycopg2
 from dotenv import load_dotenv
-import json
-from src.utils.models import Agent
-from typing import List, Dict
+from src.utils.models import Agent, AgentVersion
+from logging import getLogger
 
 load_dotenv()
+
+logger = getLogger(__name__)
 
 class DatabaseManager:
     def __init__(self):
@@ -21,103 +22,56 @@ class DatabaseManager:
     def close(self):
         if self.conn:
             self.conn.close()
-
-    def get_connection(self):
-        return psycopg2.connect(
-            host=os.getenv('AWS_RDS_PLATFORM_ENDPOINT'),
-            user=os.getenv('AWS_MASTER_USERNAME'),
-            password=os.getenv('AWS_MASTER_PASSWORD'),
-            database=os.getenv('AWS_RDS_PLATFORM_DB_NAME'),
-            sslmode='require'
-        ) 
+        
+    def get_agent(self, miner_hotkey: str) -> Agent:
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM agents WHERE miner_hotkey = %s
+            """, (miner_hotkey,))
+            row = cursor.fetchone()
+            if row:
+                return Agent(
+                    agent_id=row[0],
+                    miner_hotkey=row[1],
+                    latest_version=row[2],
+                    created_at=row[3],
+                    last_updated=row[4]
+                )
+            return None
         
     def store_agent(self, agent: Agent) -> int:
-        """Store an agent in the database (AWS Postgres RDS).
-        Returns 1 on success, 0 on failure.
+        """
+        Store an agent in the database. If the agent already exists, update latest_version and last_updated. Return 1 if successful, 0 if not.
         """
         try:
-            conn = self.get_connection()
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO agents (agent_id, miner_hotkey, created_at, last_updated, latest_version)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (agent_id) DO UPDATE SET
-                            last_updated = EXCLUDED.last_updated,
-                            latest_version = EXCLUDED.latest_version
-                    """, (
-                        agent.agent_id,
-                        agent.miner_hotkey,
-                        agent.created_at,
-                        agent.last_updated,
-                        agent.latest_version
-                    ))
-                conn.commit()
-            return 1
+            with self.conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO agents (agent_id, miner_hotkey, latest_version, created_at, last_updated)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (agent_id) DO UPDATE SET
+                        latest_version = EXCLUDED.latest_version,
+                        last_updated = EXCLUDED.last_updated
+                """, (agent.agent_id, agent.miner_hotkey, agent.latest_version, agent.created_at, agent.last_updated))
+                logger.info(f"Agent {agent.agent_id} stored successfully")
+                return 1
         except Exception as e:
-            print(f"Error storing agent {getattr(agent, 'agent_id', None)}: {str(e)}")
+            logger.error(f"Error storing agent {agent.agent_id}: {str(e)}")
             return 0
         
-    def get_agents(self, type: str = None) -> List[Agent]:
-        """Retrieve all agents from the database (AWS Postgres RDS).
-        Returns a list of Agent objects.
+    def store_agent_version(self, agent_version: AgentVersion) -> int:
         """
-        conn = self.get_connection()
-        try:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT * FROM agents
-                    """)
-                    if type:
-                        cursor.execute("""
-                            SELECT * FROM agents WHERE type = %s
-                        """, (type,))
-                    else:
-                        cursor.execute("""
-                            SELECT * FROM agents
-                        """)
-                    rows = cursor.fetchall()
-                    return [
-                        Agent(
-                            agent_id=row[0],
-                            miner_hotkey=row[1], 
-                            created_at=row[2],
-                            last_updated=row[3],
-                            type=row[4],
-                            version=row[5],
-                            elo=row[6],
-                            num_responses=row[7]
-                        ) 
-                        for row in rows]
-        except Exception as e:
-            print(f"Error getting agents: {str(e)}")
-            return []
-        
-    def get_agent(self, agent_id: str) -> Agent:
-        """Retrieve an agent from the database (AWS Postgres RDS).
-        Returns an Agent object.
+        Store an agent version in the database. Return 1 if successful, 0 if not. If the agent version already exists, update the score.
         """
-        conn = self.get_connection()
         try:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT * FROM agents WHERE agent_id = %s
-                    """, (agent_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        return Agent(
-                            agent_id=row[0],
-                            miner_hotkey=row[1],
-                            created_at=row[2],
-                            last_updated=row[3],
-                            type=row[4],
-                            version=row[5],
-                            elo=row[6],
-                            num_responses=row[7]
-                        )
-                    return None
+            with self.conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO agent_versions (version_id, agent_id, version_num, created_at, score)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (version_id) DO UPDATE SET
+                        score = EXCLUDED.score
+                    """, (agent_version.version_id, agent_version.agent_id, agent_version.version_num, agent_version.created_at, agent_version.score))
+                logger.info(f"Agent version {agent_version.version_id} stored successfully")
+                return 1
         except Exception as e:
-            print(f"Error getting agent {agent_id}: {str(e)}")
-            return None
+            logger.error(f"Error storing agent version {agent_version.version_id}: {str(e)}")
+            return 0
