@@ -45,8 +45,18 @@ class WebSocketServer:
                 # Wait for client's response
                 response = await websocket.recv()
                 response_json = json.loads(response)
+
                 if response_json["event"] == "validator-version":
                     self.validator_versions = update_validator_versions(response_json, self.validator_versions)
+
+                if response_json["event"] == "agent-version":
+                    socket_message = self.get_next_agent_version(response_json["validator_hotkey"])
+                    try:
+                        await websocket.send(json.dumps(socket_message))
+                        logger.info(f"Platform socket sent next agent version from queue to validator {websocket.remote_address}")
+                    except websockets.ConnectionClosed:
+                        logger.warning(f"Failed to send next agent version from queue to validator {websocket.remote_address}")
+
         except websockets.ConnectionClosed:
             logger.info(f"Validator {websocket.remote_address} disconnected from platform socket. Total validators connected: {len(self.clients)}")
         finally:
@@ -84,12 +94,12 @@ class WebSocketServer:
             logger.info("Tried to notify validators of new agent version, but no validators are connected to the platform socket")
 
     # Shakeel Queue logic goes here
-    async def send_agent_version(self):
+    def get_next_agent_version(self, validator_hotkey: str):
         socket_message = {
             "event": "agent-version",
-            "agent_version": self.agent_version
+            # "agent_version": AgentVersion() <--- TODO: Get the next agent version from the queue
         }
-        pass
+        return socket_message
 
     async def get_validator_version(self) -> list:
         socket_message = {
