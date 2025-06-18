@@ -1,20 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import logging
 import boto3
 import os
 from dotenv import load_dotenv
-from typing import List
 
 from src.utils.auth import verify_request
 from src.db.operations import DatabaseManager
-from src.utils.config import PROBLEM_TYPES
-from src.utils.chutes import ChutesManager
+from src.socket.server import WebSocketServer
 
 logger = logging.getLogger(__name__)
 
 db = DatabaseManager()
-chutes = ChutesManager()
+server = WebSocketServer()
 
 load_dotenv()
 s3_bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
@@ -57,10 +55,14 @@ async def get_agent_file(agent_id: str):
     }
     return StreamingResponse(agent_object['Body'], media_type='application/octet-stream', headers=headers)
 
+async def get_validator_versions():
+    return server.validator_versions
+
 router = APIRouter()
 
 routes = [
     ("/agent-file", get_agent_file),
+    ("/validator-versions", get_validator_versions),
 ]
 
 for path, endpoint in routes:
