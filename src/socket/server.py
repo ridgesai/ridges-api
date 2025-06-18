@@ -70,7 +70,7 @@ class WebSocketServer:
         logger.info(log_message)
         return True
 
-    async def new_agent(self):
+    async def notify_of_new_agent_version(self):
         socket_message = {
             "event": "new-agent-version",
         }
@@ -82,6 +82,14 @@ class WebSocketServer:
         
         if not success:
             logger.info("Tried to notify validators of new agent version, but no validators are connected to the platform socket")
+
+    # Shakeel Queue logic goes here
+    async def send_agent_version(self):
+        socket_message = {
+            "event": "agent-version",
+            "agent_version": self.agent_version
+        }
+        pass
 
     async def get_validator_version(self) -> list:
         socket_message = {
