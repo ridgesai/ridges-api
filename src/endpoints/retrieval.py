@@ -18,36 +18,24 @@ load_dotenv()
 s3_bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
 
 # Get version file
-async def get_agent_file(agent_id: str):
-    agent = db.get_agent(agent_id)
+async def get_agent_version_file(version_id: str):
+    agent_version = db.get_agent_version(version_id)
     
-    if not agent:
+    if not agent_version:
+        logger.info(f"File for agent version {version_id} was requested but not found in our database")
         raise HTTPException(
-            status_code=404,
-            detail={
-                "status": "fail",
-                "message": f"Agent not found",
-                "details": {
-                    "agent_id": agent_id,
-                    "agent_file": None
-                }
-            }
+            status_code=404, 
+            detail="The requested agent version was not found. Are you sure you have the correct version ID?"
         )
     
     try:
         s3 = boto3.client('s3')
-        agent_object = s3.get_object(Bucket=s3_bucket_name, Key=f"{agent_id}/agent.py")
-    except Exception:
+        agent_object = s3.get_object(Bucket=s3_bucket_name, Key=f"{version_id}/agent.py")
+    except Exception as e:
+        logger.error(f"Error retrieving agent version file from S3 for version {version_id}: {e}")
         raise HTTPException(
             status_code=500,
-            detail={
-                "status": "fail",
-                "message": f"Internal server error while retrieving agent file. Please try again later.",
-                "details": {
-                    "agent_id": agent_id,
-                    "agent_file": None
-                }
-            }
+            detail="Internal server error while retrieving agent version file. Please try again later."
         )
     
     headers = {
@@ -61,7 +49,7 @@ async def get_validator_versions():
 router = APIRouter()
 
 routes = [
-    ("/agent-file", get_agent_file),
+    ("/agent-version-file", get_agent_version_file),
     ("/validator-versions", get_validator_versions),
 ]
 

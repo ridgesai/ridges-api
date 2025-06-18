@@ -163,7 +163,7 @@ async def post_agent (
         "details": {
             "agent_id": agent_id,
         },
-        "message": f"Successfully updated agent {agent_id} to version {agent_object.latest_version}" if existing_agent else f"Successfully created agent {agent_id} with version {agent_object.latest_version}"
+        "message": f"Successfully updated agent {agent_id} to version {agent_object.latest_version}" if existing_agent else f"Successfully created agent {agent_id}"
     }
 
 router = APIRouter()

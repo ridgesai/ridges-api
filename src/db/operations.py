@@ -24,6 +24,9 @@ class DatabaseManager:
             self.conn.close()
         
     def get_agent(self, miner_hotkey: str) -> Agent:
+        """
+        Get an agent from the database. Return None if not found.
+        """
         with self.conn.cursor() as cursor:
             cursor.execute("""
                 SELECT * FROM agents WHERE miner_hotkey = %s
@@ -36,6 +39,25 @@ class DatabaseManager:
                     latest_version=row[2],
                     created_at=row[3],
                     last_updated=row[4]
+                )
+            return None
+        
+    def get_agent_version(self, version_id: str) -> AgentVersion:
+        """
+        Get an agent version from the database. Return None if not found.
+        """
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM agent_versions WHERE version_id = %s
+            """, (version_id,))
+            row = cursor.fetchone()
+            if row:
+                return AgentVersion(
+                    version_id=row[0],
+                    agent_id=row[1],
+                    version_num=row[2],
+                    created_at=row[3],
+                    score=row[4]
                 )
             return None
         
