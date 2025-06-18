@@ -1,11 +1,14 @@
 import asyncio
 import websockets
-from typing import Set, Optional
-from src.utils.logging import get_logger
 import json
-from src.socket.server_helpers import update_validator_versions
+from typing import Set, Optional
+
+from src.utils.logging import get_logger
+from src.socket.server_helpers import update_validator_versions, get_agent_to_evaluate
+from src.db.operations import DatabaseManager
 
 logger = get_logger(__name__)
+db = DatabaseManager()
 
 class WebSocketServer:
     _instance: Optional['WebSocketServer'] = None
@@ -93,13 +96,26 @@ class WebSocketServer:
         if not success:
             logger.info("Tried to notify validators of new agent version, but no validators are connected to the platform socket")
 
-    # Shakeel Queue logic goes here
     def get_next_agent_version(self, validator_hotkey: str):
-        socket_message = {
-            "event": "agent-version",
-            # "agent_version": AgentVersion() <--- TODO: Get the next agent version from the queue
-        }
-        return socket_message
+        try:
+            agent_version = get_agent_to_evaluate(validator_hotkey, db)
+            socket_message = {
+                "event": "agent-version",
+                "agent_version": {
+                    "version_id": agent_version.version_id,
+                    "agent_id": agent_version.agent_id,
+                    "version_num": agent_version.version_num,
+                    "created_at": agent_version.created_at.isoformat(),
+                    "score": agent_version.score
+                }
+            }
+            return socket_message
+        except Exception as e:
+            logger.error(f"Error getting next agent version: {str(e)}")
+            return {
+                "event": "agent-version",
+                "error": "No agents available to evaluate"
+            }
 
     async def get_validator_version(self) -> list:
         socket_message = {

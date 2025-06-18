@@ -97,3 +97,39 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error storing agent version {agent_version.version_id}: {str(e)}")
             return 0
+
+    def get_latest_unevaluated_agent(self, validator_hotkey: str) -> AgentVersion:
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT av.*
+                FROM agent_versions av
+                WHERE av.version_num = (
+                    SELECT MAX(av2.version_num)
+                    FROM agent_versions av2
+                    WHERE av2.agent_id = av.agent_id
+                )
+                AND NOT EXISTS (
+                    SELECT 1 
+                    FROM evaluation_runs er 
+                    WHERE er.validator_hotkey = %s
+                    AND er.version_id IN (
+                        SELECT version_id 
+                        FROM agent_versions 
+                        WHERE agent_id = av.agent_id
+                    )
+                )
+                ORDER BY av.created_at ASC
+                LIMIT 1;
+            """, (validator_hotkey,))
+            row = cursor.fetchone()
+            if row:
+                return AgentVersion(
+                    version_id=row[0],
+                    agent_id=row[1], 
+                    version_num=row[2],
+                    created_at=row[3],
+                    score=row[4]
+                )
+            return None
+        
+    
