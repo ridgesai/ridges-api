@@ -53,12 +53,29 @@ class WebSocketServer:
                     self.validator_versions = update_validator_versions(response_json, self.validator_versions)
 
                 if response_json["event"] == "agent-version":
-                    socket_message = self.get_next_agent_version(response_json["validator_hotkey"])
+                    socket_message = await self.get_next_agent_version(response_json["validator_hotkey"])
                     try:
                         await websocket.send(json.dumps(socket_message))
                         logger.info(f"Platform socket sent next agent version from queue to validator {websocket.remote_address}")
                     except websockets.ConnectionClosed:
                         logger.warning(f"Failed to send next agent version from queue to validator {websocket.remote_address}")
+
+                if response_json["event"] == "request-agent-version":
+                    # New event type for validators to request agent versions
+                    validator_hotkey = response_json.get("validator_hotkey")
+                    if validator_hotkey:
+                        socket_message = await self.get_next_agent_version(validator_hotkey)
+                        try:
+                            await websocket.send(json.dumps(socket_message))
+                            logger.info(f"Platform socket sent requested agent version to validator {websocket.remote_address}")
+                        except websockets.ConnectionClosed:
+                            logger.warning(f"Failed to send requested agent version to validator {websocket.remote_address}")
+                    else:
+                        error_message = {
+                            "event": "error",
+                            "message": "validator_hotkey is required for request-agent-version event"
+                        }
+                        await websocket.send(json.dumps(error_message))
 
         except websockets.ConnectionClosed:
             logger.info(f"Validator {websocket.remote_address} disconnected from platform socket. Total validators connected: {len(self.clients)}")
@@ -96,7 +113,7 @@ class WebSocketServer:
         if not success:
             logger.info("Tried to notify validators of new agent version, but no validators are connected to the platform socket")
 
-    def get_next_agent_version(self, validator_hotkey: str):
+    async def get_next_agent_version(self, validator_hotkey: str):
         try:
             agent_version = get_agent_to_evaluate(validator_hotkey, db)
             socket_message = {
