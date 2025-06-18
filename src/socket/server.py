@@ -1,11 +1,14 @@
 import asyncio
 import websockets
-from typing import Set, Optional
-from src.utils.logging import get_logger
 import json
-from src.socket.server_helpers import update_validator_versions, upsert_evaluation_run
+from typing import Set, Optional
+
+from src.utils.logging import get_logger
+from src.socket.server_helpers import update_validator_versions, get_agent_to_evaluate
+from src.db.operations import DatabaseManager, upsert_evaluation_run
 
 logger = get_logger(__name__)
+db = DatabaseManager()
 
 class WebSocketServer:
     _instance: Optional['WebSocketServer'] = None
@@ -50,7 +53,7 @@ class WebSocketServer:
                     self.validator_versions = update_validator_versions(response_json, self.validator_versions)
 
                 if response_json["event"] == "agent-version":
-                    socket_message = self.get_next_agent_version(response_json["validator_hotkey"])
+                    socket_message = await self.get_next_agent_version(response_json["validator_hotkey"])
                     try:
                         await websocket.send(json.dumps(socket_message))
                         logger.info(f"Platform socket sent next agent version from queue to validator {websocket.remote_address}")
@@ -60,6 +63,22 @@ class WebSocketServer:
                 if response_json["event"] == "upsert-evaluation-run":
                     print(response_json["evaluation_run"])
                     upsert_evaluation_run(response_json["evaluation_run"])
+
+                if response_json["event"] == "request-agent-for-evaluation":
+                    validator_hotkey = response_json.get("validator_hotkey")
+                    if validator_hotkey:
+                        socket_message = await self.get_next_agent_version(validator_hotkey)
+                        try:
+                            await websocket.send(json.dumps(socket_message))
+                            logger.info(f"Platform socket sent requested agent version to validator {websocket.remote_address}")
+                        except websockets.ConnectionClosed:
+                            logger.warning(f"Failed to send requested agent version to validator {websocket.remote_address}")
+                    else:
+                        error_message = {
+                            "event": "error",
+                            "message": "validator_hotkey is required for request-agent-for-evaluation event"
+                        }
+                        await websocket.send(json.dumps(error_message))
 
         except websockets.ConnectionClosed:
             logger.info(f"Validator {websocket.remote_address} disconnected from platform socket. Total validators connected: {len(self.clients)}")
@@ -86,7 +105,7 @@ class WebSocketServer:
 
     async def notify_of_new_agent_version(self):
         socket_message = {
-            "event": "new-agent-version",
+            "event": "agent-for-evaluation",
         }
         
         success = await self._send_to_all_clients(
@@ -97,13 +116,26 @@ class WebSocketServer:
         if not success:
             logger.info("Tried to notify validators of new agent version, but no validators are connected to the platform socket")
 
-    # Shakeel Queue logic goes here
-    def get_next_agent_version(self, validator_hotkey: str):
-        socket_message = {
-            "event": "agent-version",
-            # "agent_version": AgentVersion() <--- TODO: Get the next agent version from the queue
-        }
-        return socket_message
+    async def get_next_agent_version(self, validator_hotkey: str):
+        try:
+            agent_version = get_agent_to_evaluate(validator_hotkey, db)
+            socket_message = {
+                "event": "agent-version",
+                "agent_version": {
+                    "version_id": agent_version.version_id,
+                    "agent_id": agent_version.agent_id,
+                    "version_num": agent_version.version_num,
+                    "created_at": agent_version.created_at.isoformat(),
+                    "score": agent_version.score
+                }
+            }
+            return socket_message
+        except Exception as e:
+            logger.error(f"Error getting next agent version: {str(e)}")
+            return {
+                "event": "agent-version",
+                "error": "No agents available to evaluate"
+            }
 
     async def get_validator_version(self) -> list:
         socket_message = {
