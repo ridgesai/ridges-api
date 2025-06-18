@@ -4,8 +4,8 @@ import json
 from typing import Set, Optional
 
 from src.utils.logging import get_logger
-from src.socket.server_helpers import update_validator_versions, get_agent_to_evaluate
-from src.db.operations import DatabaseManager, upsert_evaluation_run
+from src.socket.server_helpers import update_validator_versions, get_agent_to_evaluate, upsert_evaluation_run
+from src.db.operations import DatabaseManager
 
 logger = get_logger(__name__)
 db = DatabaseManager()
