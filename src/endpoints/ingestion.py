@@ -181,9 +181,16 @@ async def post_regression_responses(data: List[RegressionResponse], validator_ho
 async def post_agent (
     agent_file: UploadFile = File(...),
     miner_hotkey: str = None,
-    type: str = None,
-    registered_agent_id: Optional[str] = None,
 ):
+    # Check if miner already has an agent qued, if so, rate limit the miner
+
+    # Check if miner_hotkey is provided
+    if not miner_hotkey:
+        raise HTTPException(
+            status_code=400,
+            detail="miner_hotkey is required"
+        )
+
     # Check filename
     if agent_file.filename != "agent.py":
         raise HTTPException(
@@ -257,31 +264,10 @@ async def post_agent (
             status_code=400,
             detail=f"Error validating the agent file: {str(e)}"
         )
-    
-    # Check if miner_hotkey is provided
-    if not miner_hotkey:
-        raise HTTPException(
-            status_code=400,
-            detail="miner_hotkey is required"
-        )
 
-    # Check if type is provided and is valid
-    if not type or type not in PROBLEM_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"type is required and must be one of {PROBLEM_TYPES}"
-        )
-    
-    existing_agent = None
-    if registered_agent_id:
-        existing_agent = db.get_agent(registered_agent_id)
-        if not existing_agent:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Agent {registered_agent_id} not found"
-            )
+    existing_agent = db.get_agent(miner_hotkey)
         
-    agent_id = str(uuid.uuid4()) if not registered_agent_id else registered_agent_id
+    agent_id = str(uuid.uuid4()) if not existing_agent else existing_agent.agent_id
     
     s3_client = boto3.client('s3')
 
