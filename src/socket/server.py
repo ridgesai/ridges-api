@@ -3,7 +3,7 @@ import websockets
 from typing import Set, Optional
 from src.utils.logging import get_logger
 import json
-from src.socket.server_helpers import update_validator_versions
+from src.socket.server_helpers import update_validator_versions, upsert_evaluation_run
 
 logger = get_logger(__name__)
 
@@ -56,6 +56,10 @@ class WebSocketServer:
                         logger.info(f"Platform socket sent next agent version from queue to validator {websocket.remote_address}")
                     except websockets.ConnectionClosed:
                         logger.warning(f"Failed to send next agent version from queue to validator {websocket.remote_address}")
+
+                if response_json["event"] == "upsert-evaluation-run":
+                    print(response_json["evaluation_run"])
+                    upsert_evaluation_run(response_json["evaluation_run"])
 
         except websockets.ConnectionClosed:
             logger.info(f"Validator {websocket.remote_address} disconnected from platform socket. Total validators connected: {len(self.clients)}")

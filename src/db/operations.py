@@ -1,7 +1,7 @@
 import os
 import psycopg2
 from dotenv import load_dotenv
-from src.utils.models import Agent, AgentVersion
+from src.utils.models import Agent, AgentVersion, EvaluationRun
 from logging import getLogger
 
 load_dotenv()
@@ -96,4 +96,28 @@ class DatabaseManager:
                 return 1
         except Exception as e:
             logger.error(f"Error storing agent version {agent_version.version_id}: {str(e)}")
+            return 0
+
+    def store_evaluation_run(self, evaluation_run: EvaluationRun) -> int:
+        """
+        Store an evaluation run in the database. Return 1 if successful, 0 if not.
+        """
+        try:
+            with self.conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO evaluation_runs (run_id, version_id, validator_hotkey, swebench_instance_id, response, pass_to_fail_success, fail_to_pass_success, pass_to_pass_success, fail_to_fail_success, solved, started_at, finished_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (run_id) DO UPDATE SET
+                        response = EXCLUDED.response,
+                        pass_to_fail_success = EXCLUDED.pass_to_fail_success,
+                        fail_to_pass_success = EXCLUDED.fail_to_pass_success,
+                        pass_to_pass_success = EXCLUDED.pass_to_pass_success,
+                        fail_to_fail_success = EXCLUDED.fail_to_fail_success,
+                        solved = EXCLUDED.solved,
+                        finished_at = EXCLUDED.finished_at
+                """, (evaluation_run.run_id, evaluation_run.version_id, evaluation_run.validator_hotkey, evaluation_run.swebench_instance_id, evaluation_run.response, evaluation_run.pass_to_fail_success, evaluation_run.fail_to_pass_success, evaluation_run.pass_to_pass_success, evaluation_run.fail_to_fail_success, evaluation_run.solved, evaluation_run.started_at, evaluation_run.finished_at))
+                logger.info(f"Evaluation run {evaluation_run.run_id} stored successfully")
+                return 1
+        except Exception as e:
+            logger.error(f"Error storing evaluation run {evaluation_run.run_id}: {str(e)}")
             return 0

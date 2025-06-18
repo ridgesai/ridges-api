@@ -155,8 +155,9 @@ async def post_agent (
             status_code=400,
             detail=f"Failed to store agent version in our database"
         )
-
-    await server.send_agent(agent_object)
+    
+    await server.notify_of_new_agent_version()
+    await server.get_validator_version()
 
     return {
         "status": "success",

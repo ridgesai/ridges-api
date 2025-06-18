@@ -1,9 +1,13 @@
 import os
 import httpx
+
 from src.utils.logging import get_logger
+from src.db.operations import DatabaseManager
+from src.utils.models import EvaluationRun
 
 logger = get_logger(__name__)
 
+db = DatabaseManager()
 
 def get_recent_commit_hashes(history_length: int = 30) -> list:
     """
@@ -41,3 +45,20 @@ def update_validator_versions(response_json: dict, validator_versions: dict) -> 
     }
 
     return validator_versions
+
+def upsert_evaluation_run(evaluation_run: dict):
+    evaluation_run = EvaluationRun(
+        run_id=evaluation_run["run_id"],
+        version_id=evaluation_run["version_id"],
+        validator_hotkey=evaluation_run["validator_hotkey"],
+        swebench_instance_id=evaluation_run["swebench_instance_id"],
+        response=evaluation_run["response"],
+        pass_to_fail_success=evaluation_run["pass_to_fail_success"],
+        fail_to_pass_success=evaluation_run["fail_to_pass_success"],
+        pass_to_pass_success=evaluation_run["pass_to_pass_success"],
+        fail_to_fail_success=evaluation_run["fail_to_fail_success"],
+        solved=evaluation_run["solved"],
+        started_at=evaluation_run["started_at"],
+        finished_at=evaluation_run["finished_at"]
+    )
+    db.store_evaluation_run(evaluation_run)
