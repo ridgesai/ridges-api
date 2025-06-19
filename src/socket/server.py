@@ -8,7 +8,6 @@ from src.socket.server_helpers import update_validator_versions, get_agent_to_ev
 from src.db.operations import DatabaseManager
 
 logger = get_logger(__name__)
-db = DatabaseManager()
 
 class WebSocketServer:
     _instance: Optional['WebSocketServer'] = None
@@ -81,7 +80,7 @@ class WebSocketServer:
                         await websocket.send(json.dumps(error_message))
 
         except websockets.ConnectionClosed:
-            logger.info(f"Validator {websocket.remote_address} disconnected from platform socket. Total validators connected: {len(self.clients)}")
+            logger.info(f"Validator {websocket.remote_address} disconnected from platform socket. Total validators connected: {len(self.clients) - 1}")
         finally:
             # Remove client when they disconnect
             self.clients.remove(websocket)
@@ -105,7 +104,7 @@ class WebSocketServer:
 
     async def notify_of_new_agent_version(self):
         socket_message = {
-            "event": "agent-for-evaluation",
+            "event": "new-agent-version",
         }
         
         success = await self._send_to_all_clients(
@@ -118,22 +117,23 @@ class WebSocketServer:
 
     async def get_next_agent_version(self, validator_hotkey: str):
         try:
-            agent_version = get_agent_to_evaluate(validator_hotkey, db)
+            agent_version = get_agent_to_evaluate(validator_hotkey)
             socket_message = {
-                "event": "agent-version",
+                "event": "agent-for-evaluation",
                 "agent_version": {
                     "version_id": agent_version.version_id,
                     "agent_id": agent_version.agent_id,
                     "version_num": agent_version.version_num,
                     "created_at": agent_version.created_at.isoformat(),
-                    "score": agent_version.score
+                    "score": agent_version.score,
+                    "miner_hotkey": agent_version.miner_hotkey
                 }
             }
             return socket_message
         except Exception as e:
             logger.error(f"Error getting next agent version: {str(e)}")
             return {
-                "event": "agent-version",
+                "event": "agent-for-evaluation",
                 "error": "No agents available to evaluate"
             }
 

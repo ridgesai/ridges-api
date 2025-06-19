@@ -16,6 +16,9 @@ class AgentVersion(BaseModel):
     created_at: datetime
     score: Optional[float]
 
+class AgentVersionForValidator(AgentVersion):
+    miner_hotkey: str
+
 class EvaluationRun(BaseModel):
     run_id: str
     version_id: str

@@ -3,7 +3,7 @@ import httpx
 
 from src.utils.logging import get_logger
 from src.db.operations import DatabaseManager
-from src.utils.models import EvaluationRun, AgentVersion
+from src.utils.models import AgentVersionForValidator, EvaluationRun, AgentVersion
 
 logger = get_logger(__name__)
 
@@ -35,7 +35,7 @@ def get_recent_commit_hashes(history_length: int = 30) -> list:
         logger.error(f"Failed to get commits: {e}")
         return []
 
-def get_agent_to_evaluate(validator_hotkey: str, db: DatabaseManager) -> AgentVersion:
+def get_agent_to_evaluate(validator_hotkey: str) -> AgentVersionForValidator:
     """
     Gets the latest agent in queue to evaluate for a validator. 
     The agent it returns is the oldest agent unevaluated by the validator.

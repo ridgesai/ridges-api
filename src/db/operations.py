@@ -1,7 +1,7 @@
 import os
 import psycopg2
 from dotenv import load_dotenv
-from src.utils.models import Agent, AgentVersion, EvaluationRun
+from src.utils.models import Agent, AgentVersion, EvaluationRun, AgentVersionForValidator
 from logging import getLogger
 
 load_dotenv()
@@ -122,14 +122,15 @@ class DatabaseManager:
             logger.error(f"Error storing evaluation run {evaluation_run.run_id}: {str(e)}")
             return 0
     
-    def get_latest_unevaluated_agent_version(self, validator_hotkey: str) -> AgentVersion:
+    def get_latest_unevaluated_agent_version(self, validator_hotkey: str) -> AgentVersionForValidator:
         """
         Get the latest unevaluated agent version for a validator. Return None if not found.
         """
         with self.conn.cursor() as cursor:
             cursor.execute("""
-                SELECT av.*
+                SELECT av.*, a.miner_hotkey
                 FROM agent_versions av
+                JOIN agents a ON av.agent_id = a.agent_id
                 WHERE av.version_num = (
                     SELECT MAX(av2.version_num)
                     FROM agent_versions av2
@@ -139,23 +140,20 @@ class DatabaseManager:
                     SELECT 1 
                     FROM evaluation_runs er 
                     WHERE er.validator_hotkey = %s
-                    AND er.version_id IN (
-                        SELECT version_id 
-                        FROM agent_versions 
-                        WHERE agent_id = av.agent_id
-                    )
+                    AND er.version_id = av.version_id
                 )
                 ORDER BY av.created_at ASC
                 LIMIT 1;
             """, (validator_hotkey,))
             row = cursor.fetchone()
             if row:
-                return AgentVersion(
+                return AgentVersionForValidator(
                     version_id=row[0],
                     agent_id=row[1], 
                     version_num=row[2],
                     created_at=row[3],
-                    score=row[4]
+                    score=row[4],
+                    miner_hotkey=row[5]
                 )
             return None
         
