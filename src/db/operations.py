@@ -15,7 +15,12 @@ class DatabaseManager:
             user=os.getenv('AWS_MASTER_USERNAME'),
             password=os.getenv('AWS_MASTER_PASSWORD'),
             database=os.getenv('AWS_RDS_PLATFORM_DB_NAME'),
-            sslmode='require'
+            sslmode='require',
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5
+            # Keepalive stuff is for a bug fix, look into it later
         )
         self.conn.autocommit = True
 
@@ -75,7 +80,7 @@ class DatabaseManager:
                     ON CONFLICT (evaluation_id) DO UPDATE SET
                         status = EXCLUDED.status,
                         started_at = EXCLUDED.started_at,
-                        finished_at = EXCLUDED.finished_at
+                        finished_at = EXCLUDED.finished_at,
                         terminated_reason = EXCLUDED.terminated_reason
                 """, (evaluation.evaluation_id, evaluation.version_id, evaluation.validator_hotkey, evaluation.status, evaluation.created_at, evaluation.started_at, evaluation.finished_at, evaluation.terminated_reason))
                 logger.info(f"Evaluation {evaluation.evaluation_id} stored successfully")
@@ -91,7 +96,7 @@ class DatabaseManager:
         try:
             with self.conn.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO evaluation_runs (run_id, version_id, validator_hotkey, swebench_instance_id, response, error, pass_to_fail_success, fail_to_pass_success, pass_to_pass_success, fail_to_fail_success, solved, started_at, finished_at)
+                    INSERT INTO evaluation_runs (run_id, evaluation_id, swebench_instance_id, response, error, pass_to_fail_success, fail_to_pass_success, pass_to_pass_success, fail_to_fail_success, solved, started_at, finished_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (run_id) DO UPDATE SET
                         response = EXCLUDED.response,
@@ -102,7 +107,7 @@ class DatabaseManager:
                         fail_to_fail_success = EXCLUDED.fail_to_fail_success,
                         solved = EXCLUDED.solved,
                         finished_at = EXCLUDED.finished_at
-                """, (evaluation_run.run_id, evaluation_run.version_id, evaluation_run.validator_hotkey, evaluation_run.swebench_instance_id, evaluation_run.response, evaluation_run.error, evaluation_run.pass_to_fail_success, evaluation_run.fail_to_pass_success, evaluation_run.pass_to_pass_success, evaluation_run.fail_to_fail_success, evaluation_run.solved, evaluation_run.started_at, evaluation_run.finished_at))
+                """, (evaluation_run.run_id, evaluation_run.evaluation_id, evaluation_run.swebench_instance_id, evaluation_run.response, evaluation_run.error, evaluation_run.pass_to_fail_success, evaluation_run.fail_to_pass_success, evaluation_run.pass_to_pass_success, evaluation_run.fail_to_fail_success, evaluation_run.solved, evaluation_run.started_at, evaluation_run.finished_at))
                 logger.info(f"Evaluation run {evaluation_run.run_id} stored successfully")
                 return 1
         except Exception as e:
@@ -158,7 +163,7 @@ class DatabaseManager:
             return None
         
                 
-    def get_agent(self, miner_hotkey: str) -> Agent:
+    def get_agent_by_hotkey(self, miner_hotkey: str) -> Agent:
         """
         Get an agent from the database. Return None if not found.
         """
@@ -166,6 +171,44 @@ class DatabaseManager:
             cursor.execute("""
                 SELECT * FROM agents WHERE miner_hotkey = %s
             """, (miner_hotkey,))
+            row = cursor.fetchone()
+            if row:
+                return Agent(
+                    agent_id=row[0],
+                    miner_hotkey=row[1],
+                    latest_version=row[2],
+                    created_at=row[3],
+                    last_updated=row[4]
+                )
+            return None
+        
+    def get_agent(self, agent_id: str) -> Agent:
+        """
+        Get an agent from the database. Return None if not found.
+        """
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM agents WHERE agent_id = %s
+            """, (agent_id,))
+            row = cursor.fetchone()
+            if row:
+                return Agent(
+                    agent_id=row[0],
+                    miner_hotkey=row[1],
+                    latest_version=row[2],
+                    created_at=row[3],
+                    last_updated=row[4]
+                )
+            return None
+    
+    def get_agent_by_version_id(self, version_id: str) -> Agent:
+        """
+        Get an agent from the database. Return None if not found.
+        """
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM agents WHERE version_id = %s
+            """, (version_id,))
             row = cursor.fetchone()
             if row:
                 return Agent(

@@ -22,7 +22,6 @@ class AgentVersionForValidator(AgentVersion):
 class EvaluationRun(BaseModel):
     run_id: str
     evaluation_id: str
-    version_id: str
     swebench_instance_id: str
     response: Optional[str]
     error: Optional[str]

@@ -4,7 +4,7 @@ import json
 from typing import Set, Optional
 
 from src.utils.logging import get_logger
-from src.socket.server_helpers import upsert_evaluation_run, get_next_evaluation, get_agent, create_evaluation, start_evaluation, finish_evaluation
+from src.socket.server_helpers import upsert_evaluation_run, get_next_evaluation, get_agent_version_for_validator, create_evaluation, start_evaluation, finish_evaluation
 
 logger = get_logger(__name__)
 
@@ -72,7 +72,7 @@ class WebSocketServer:
                     finish_evaluation(response_json["evaluation_id"], response_json["errored"])
 
                 if response_json["event"] == "upsert-evaluation-run":
-                    logger.info(f"Validator {websocket.remote_address} sent an evaluation run. Upserting evaluation run.")
+                    logger.info(f"Validator {websocket.remote_address} with hotkey {self.clients[websocket]['val_hotkey']} sent an evaluation run. Upserting evaluation run.")
                     upsert_evaluation_run(response_json["evaluation_run"]) 
 
         except websockets.ConnectionClosed:
@@ -89,7 +89,7 @@ class WebSocketServer:
     async def get_next_evaluation(self, validator_hotkey: str):
         try:
             evaluation = get_next_evaluation(validator_hotkey)
-            agent_version = get_agent(evaluation.version_id)
+            agent_version = get_agent_version_for_validator(evaluation.version_id)
             socket_message = {
                 "event": "evaluation",
                 "evaluation_id": evaluation.evaluation_id,
@@ -108,6 +108,6 @@ class WebSocketServer:
             return None
     
     async def start(self):
-        self.server = await websockets.serve(self.handle_connection, self.host, self.port)
+        self.server = await websockets.serve(self.handle_connection, self.host, self.port, open_timeout=600, close_timeout=600, ping_timeout=600) # Timeout stuff is for a bug fix, look into it later
         logger.info(f"Platform socket started on {self.uri}")
         await asyncio.Future()  # run forever

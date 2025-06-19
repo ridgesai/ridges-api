@@ -34,7 +34,7 @@ async def post_agent (
             detail="miner_hotkey is required"
         )
     
-    existing_agent = db.get_agent(miner_hotkey)
+    existing_agent = db.get_agent_by_hotkey(miner_hotkey)
     if existing_agent and existing_agent.last_updated > datetime.now() - timedelta(seconds=AGENT_RATE_LIMIT_SECONDS):
         raise HTTPException(
             status_code=400,

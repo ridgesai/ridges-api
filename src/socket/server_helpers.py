@@ -46,15 +46,15 @@ def get_next_evaluation(validator_hotkey: str) -> Evaluation:
 
     return evaluation
 
-def get_agent(version_id: str) -> AgentVersionForValidator:
+def get_agent_version_for_validator(version_id: str) -> AgentVersionForValidator:
     """
     Get the agent version for a given version id.
     """
 
     agent_version = db.get_agent_version(version_id)
-    agent = db.get_agent(agent_version.miner_hotkey)
+    agent = db.get_agent(agent_version.agent_id)
 
-    agent_version = AgentVersionForValidator(
+    agent_version_for_validator = AgentVersionForValidator(
         version_id=agent_version.version_id,
         agent_id=agent_version.agent_id,
         version_num=agent_version.version_num,
@@ -62,7 +62,7 @@ def get_agent(version_id: str) -> AgentVersionForValidator:
         score=agent_version.score,
         miner_hotkey=agent.miner_hotkey
     )
-    return agent_version
+    return agent_version_for_validator
 
 def upsert_evaluation_run(evaluation_run: dict):
     """
@@ -72,7 +72,6 @@ def upsert_evaluation_run(evaluation_run: dict):
     evaluation_run = EvaluationRun(
         run_id=evaluation_run["run_id"],
         evaluation_id=evaluation_run["evaluation_id"],
-        version_id=evaluation_run["version_id"],
         swebench_instance_id=evaluation_run["swebench_instance_id"],
         response=evaluation_run["response"],
         error=evaluation_run["error"],
@@ -96,7 +95,10 @@ def create_evaluation(version_id: str, validator_hotkey: str) -> str:
         version_id=version_id,
         validator_hotkey=validator_hotkey,
         status="waiting",
-        created_at=datetime.now()
+        terminated_reason=None,
+        created_at=datetime.now(),
+        started_at=None,
+        finished_at=None
     )
     db.store_evaluation(evaluation_object)
 
