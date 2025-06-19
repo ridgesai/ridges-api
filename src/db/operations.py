@@ -26,44 +26,6 @@ class DatabaseManager:
         if self.conn:
             self.conn.close()
         
-    def get_agent(self, miner_hotkey: str) -> Agent:
-        """
-        Get an agent from the database. Return None if not found.
-        """
-        with self.conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT * FROM agents WHERE miner_hotkey = %s
-            """, (miner_hotkey,))
-            row = cursor.fetchone()
-            if row:
-                return Agent(
-                    agent_id=row[0],
-                    miner_hotkey=row[1],
-                    latest_version=row[2],
-                    created_at=row[3],
-                    last_updated=row[4]
-                )
-            return None
-        
-    def get_agent_version(self, version_id: str) -> AgentVersion:
-        """
-        Get an agent version from the database. Return None if not found.
-        """
-        with self.conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT * FROM agent_versions WHERE version_id = %s
-            """, (version_id,))
-            row = cursor.fetchone()
-            if row:
-                return AgentVersion(
-                    version_id=row[0],
-                    agent_id=row[1],
-                    version_num=row[2],
-                    created_at=row[3],
-                    score=row[4]
-                )
-            return None
-        
     def store_agent(self, agent: Agent) -> int:
         """
         Store an agent in the database. If the agent already exists, update latest_version and last_updated. Return 1 if successful, 0 if not.
@@ -193,4 +155,43 @@ class DatabaseManager:
                     finished_at=row[7]
                 )
             logger.info(f"Evaluation {evaluation_id} not found in the database")
+            return None
+        
+                
+    def get_agent(self, miner_hotkey: str) -> Agent:
+        """
+        Get an agent from the database. Return None if not found.
+        """
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM agents WHERE miner_hotkey = %s
+            """, (miner_hotkey,))
+            row = cursor.fetchone()
+            if row:
+                return Agent(
+                    agent_id=row[0],
+                    miner_hotkey=row[1],
+                    latest_version=row[2],
+                    created_at=row[3],
+                    last_updated=row[4]
+                )
+            return None
+        
+    def get_agent_version(self, version_id: str) -> AgentVersion:
+        """
+        Get an agent version from the database. Return None if not found.
+        """
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM agent_versions WHERE version_id = %s
+            """, (version_id,))
+            row = cursor.fetchone()
+            if row:
+                return AgentVersion(
+                    version_id=row[0],
+                    agent_id=row[1],
+                    version_num=row[2],
+                    created_at=row[3],
+                    score=row[4]
+                )
             return None

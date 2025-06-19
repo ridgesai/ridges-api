@@ -25,7 +25,7 @@ class EvaluationRun(BaseModel):
     version_id: str
     swebench_instance_id: str
     response: Optional[str]
-    error: Optional[str] # update everywhere
+    error: Optional[str]
     pass_to_fail_success: Optional[str]
     fail_to_pass_success: Optional[str]
     pass_to_pass_success: Optional[str]

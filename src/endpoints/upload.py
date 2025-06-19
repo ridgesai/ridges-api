@@ -1,15 +1,14 @@
-from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import boto3
 import os
 import ast
 import sys
 from dotenv import load_dotenv
 
-from src.utils.config import PROBLEM_TYPES, PERMISSABLE_PACKAGES
+from src.utils.config import PERMISSABLE_PACKAGES, AGENT_RATE_LIMIT_SECONDS
 from src.utils.auth import verify_request
 from src.utils.models import Agent, AgentVersion
 from src.db.operations import DatabaseManager
@@ -28,13 +27,18 @@ async def post_agent (
     agent_file: UploadFile = File(...),
     miner_hotkey: str = None,
 ):
-    # TODO: Check if miner already has an agent queued, if so, rate limit the miner
-
     # Check if miner_hotkey is provided
     if not miner_hotkey:
         raise HTTPException(
             status_code=400,
             detail="miner_hotkey is required"
+        )
+    
+    existing_agent = db.get_agent(miner_hotkey)
+    if existing_agent and existing_agent.last_updated > datetime.now() - timedelta(seconds=AGENT_RATE_LIMIT_SECONDS):
+        raise HTTPException(
+            status_code=400,
+            detail=f"You must wait {AGENT_RATE_LIMIT_SECONDS} seconds before uploading a new agent"
         )
 
     # Check filename
@@ -111,8 +115,6 @@ async def post_agent (
             status_code=400,
             detail=f"Error validating the agent file: {str(e)}"
         )
-
-    existing_agent = db.get_agent(miner_hotkey)
         
     agent_id = str(uuid.uuid4()) if not existing_agent else existing_agent.agent_id
     version_id = str(uuid.uuid4())
