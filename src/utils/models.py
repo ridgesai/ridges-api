@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 class Agent(BaseModel):
     agent_id: str
@@ -21,8 +21,8 @@ class AgentVersionForValidator(AgentVersion):
 
 class EvaluationRun(BaseModel):
     run_id: str
+    evaluation_id: str
     version_id: str
-    validator_hotkey: str
     swebench_instance_id: str
     response: Optional[str]
     pass_to_fail_success: Optional[str]
@@ -31,4 +31,14 @@ class EvaluationRun(BaseModel):
     fail_to_fail_success: Optional[str]
     solved: Optional[bool]
     started_at: datetime
+    finished_at: Optional[datetime]
+
+class Evaluation(BaseModel):
+    evaluation_id: str
+    version_id: str
+    validator_hotkey: str
+    status: Literal["waiting", "running", "completed", "timedout", "disconnected", "error"]
+    terminated_reason: Optional[str]
+    created_at: datetime
+    started_at: Optional[datetime]
     finished_at: Optional[datetime]

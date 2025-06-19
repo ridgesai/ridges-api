@@ -1,7 +1,7 @@
 import os
 import psycopg2
 from dotenv import load_dotenv
-from src.utils.models import Agent, AgentVersion, EvaluationRun, AgentVersionForValidator
+from src.utils.models import Agent, AgentVersion, EvaluationRun, AgentVersionForValidator, Evaluation
 from logging import getLogger
 
 load_dotenv()
@@ -100,6 +100,27 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error storing agent version {agent_version.version_id}: {str(e)}")
             return 0
+    
+    def store_evaluation(self, evaluation: Evaluation) -> int:
+        """
+        Store an evaluation in the database. Return 1 if successful, 0 if not. If the evaluation already exists, update the status, started_at, and finished_at.
+        """
+        try:
+            with self.conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO evaluations (evaluation_id, version_id, validator_hotkey, status, created_at, started_at, finished_at, terminated_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (evaluation_id) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        started_at = EXCLUDED.started_at,
+                        finished_at = EXCLUDED.finished_at
+                        terminated_reason = EXCLUDED.terminated_reason
+                """, (evaluation.evaluation_id, evaluation.version_id, evaluation.validator_hotkey, evaluation.status, evaluation.created_at, evaluation.started_at, evaluation.finished_at, evaluation.terminated_reason))
+                logger.info(f"Evaluation {evaluation.evaluation_id} stored successfully")
+                return 1
+        except Exception as e:
+            logger.error(f"Error storing evaluation {evaluation.evaluation_id}: {str(e)}")
+            return 0
 
     def store_evaluation_run(self, evaluation_run: EvaluationRun) -> int:
         """
@@ -162,5 +183,3 @@ class DatabaseManager:
             else:
                 logger.info(f"No unevaluated agent version found for validator {validator_hotkey}")
             return None
-        
-    

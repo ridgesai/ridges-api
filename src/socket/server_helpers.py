@@ -1,9 +1,11 @@
 import os
 import httpx
+import uuid
+from datetime import datetime
 
 from src.utils.logging import get_logger
 from src.db.operations import DatabaseManager
-from src.utils.models import AgentVersionForValidator, EvaluationRun, AgentVersion
+from src.utils.models import AgentVersionForValidator, EvaluationRun, Evaluation
 
 logger = get_logger(__name__)
 
@@ -68,8 +70,8 @@ def update_validator_versions(response_json: dict, validator_versions: dict) -> 
 def upsert_evaluation_run(evaluation_run: dict):
     evaluation_run = EvaluationRun(
         run_id=evaluation_run["run_id"],
+        evaluation_id=evaluation_run["evaluation_id"],
         version_id=evaluation_run["version_id"],
-        validator_hotkey=evaluation_run["validator_hotkey"],
         swebench_instance_id=evaluation_run["swebench_instance_id"],
         response=evaluation_run["response"],
         pass_to_fail_success=evaluation_run["pass_to_fail_success"],
@@ -81,3 +83,14 @@ def upsert_evaluation_run(evaluation_run: dict):
         finished_at=evaluation_run["finished_at"]
     )
     db.store_evaluation_run(evaluation_run)
+
+def create_evaluation(version_id: str, validator_hotkey: str) -> str:
+    evaluation_object = Evaluation(
+        evaluation_id=str(uuid.uuid4()),
+        version_id=version_id,
+        validator_hotkey=validator_hotkey,
+        status="waiting",
+        created_at=datetime.now()
+    )
+    db.store_evaluation(evaluation_object)
+    return evaluation_object.evaluation_id

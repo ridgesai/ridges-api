@@ -4,8 +4,7 @@ import json
 from typing import Set, Optional
 
 from src.utils.logging import get_logger
-from src.socket.server_helpers import update_validator_versions, get_agent_to_evaluate, upsert_evaluation_run
-from src.db.operations import DatabaseManager
+from src.socket.server_helpers import get_agent_to_evaluate, upsert_evaluation_run, create_evaluation
 
 logger = get_logger(__name__)
 
@@ -23,9 +22,8 @@ class WebSocketServer:
             self.host = host
             self.port = port
             self.uri = f"ws://{host}:{port}"
-            self.clients: Set[websockets.WebSocketClientProtocol] = set()
+            self.clients: dict = {}  # Changed from Set to dict: {websocket: {"val_hotkey": str, "commit_hash": str}}
             self.server = None
-            self.validator_versions: dict = {}
             self._initialized = True
             asyncio.create_task(self.start())
     
@@ -38,8 +36,8 @@ class WebSocketServer:
     
     async def handle_connection(self, websocket):
         # Add new client to the set
-        self.clients.add(websocket)
-        logger.info(f"Validator {websocket.remote_address} connected to platform socket. Total validators connected: {len(self.clients)}")
+        self.clients[websocket] = {"val_hotkey": None, "version_commit_hash": None}
+        logger.info(f"Validator at {websocket.remote_address} connected to platform socket. Total validators connected: {len(self.clients)}")
         
         try:
             # Keep the connection alive and wait for messages
@@ -49,8 +47,9 @@ class WebSocketServer:
                 response_json = json.loads(response)
 
                 if response_json["event"] == "validator-version":
-                    logger.info(f"Validator {websocket.remote_address} sent their validator version. Updating validator versions.")
-                    self.validator_versions = update_validator_versions(response_json, self.validator_versions)
+                    self.clients[websocket]["val_hotkey"] = response_json["validator_hotkey"]
+                    self.clients[websocket]["version_commit_hash"] = response_json["version_commit_hash"]
+                    logger.info(f"Validator at {websocket.remote_address} has sent their validator version and version commit hash to the platform socket. Validator hotkey: {self.clients[websocket]['val_hotkey']}, Version commit hash: {self.clients[websocket]['version_commit_hash']}")
 
                 if response_json["event"] == "agent-version":
                     socket_message = await self.get_next_agent_version(response_json["validator_hotkey"])
@@ -64,27 +63,20 @@ class WebSocketServer:
                     logger.info(f"Validator {websocket.remote_address} sent an evaluation run. Upserting evaluation run.")
                     upsert_evaluation_run(response_json["evaluation_run"]) 
 
-                if response_json["event"] == "request-agent-for-evaluation":
-                    validator_hotkey = response_json.get("validator_hotkey")
-                    if validator_hotkey:
-                        socket_message = await self.get_next_agent_version(validator_hotkey)
-                        try:
-                            await websocket.send(json.dumps(socket_message))
-                            logger.info(f"Platform socket sent requested agent version to validator {websocket.remote_address}")
-                        except websockets.ConnectionClosed:
-                            logger.warning(f"Failed to send requested agent version to validator {websocket.remote_address}")
-                    else:
-                        error_message = {
-                            "event": "error",
-                            "message": "validator_hotkey is required for request-agent-for-evaluation event"
-                        }
-                        await websocket.send(json.dumps(error_message))
+                if response_json["event"] == "get-next-evaluation":
+                    validator_hotkey = self.clients[websocket]["val_hotkey"]
+                    socket_message = await self.get_next_evaluation(validator_hotkey)
+                    try:
+                        await websocket.send(json.dumps(socket_message))
+                        logger.info(f"Platform socket sent requested agent version to validator {websocket.remote_address}")
+                    except websockets.ConnectionClosed:
+                        logger.warning(f"Failed to send requested agent version to validator {websocket.remote_address}")
 
         except websockets.ConnectionClosed:
-            logger.info(f"Validator {websocket.remote_address} disconnected from platform socket. Total validators connected: {len(self.clients) - 1}")
+            logger.info(f"Validator at {websocket.remote_address} with hotkey {self.clients[websocket]['val_hotkey']} disconnected from platform socket. Total validators connected: {len(self.clients) - 1}")
         finally:
             # Remove client when they disconnect
-            self.clients.remove(websocket)
+            del self.clients[websocket]
     
     async def _send_to_all_clients(self, message: dict, log_message: str):
         """Helper method to send message to all clients and handle disconnections"""
@@ -93,7 +85,7 @@ class WebSocketServer:
             return False
             
         # Send message to all connected clients
-        for client in self.clients.copy():  # Use copy to avoid modification during iteration
+        for client in list(self.clients.keys()):  # Use list() to avoid modification during iteration
             try:
                 await client.send(json.dumps(message))
             except websockets.ConnectionClosed:
@@ -116,11 +108,13 @@ class WebSocketServer:
         if not success:
             logger.info("Tried to notify validators of new agent version, but no validators are connected to the platform socket")
 
-    async def get_next_agent_version(self, validator_hotkey: str):
+    async def get_next_evaluation(self, validator_hotkey: str):
         try:
             agent_version = get_agent_to_evaluate(validator_hotkey)
+            evaluation_id = create_evaluation(agent_version.version_id, validator_hotkey)
             socket_message = {
-                "event": "agent-for-evaluation",
+                "event": "evaluation",
+                "evaluation_id": evaluation_id,
                 "agent_version": {
                     "version_id": agent_version.version_id,
                     "agent_id": agent_version.agent_id,
