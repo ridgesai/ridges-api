@@ -122,10 +122,10 @@ async def post_agent (
     try:
         s3_client.upload_fileobj(agent_file.file, s3_bucket_name, f"{version_id}/agent.py")
     except Exception as e:
-        print(e)
+        logger.error(f"Failed to upload agent version to S3: {e}")
         raise HTTPException(
-            status_code=400,
-            detail=f"Failed to upload agent to our database"
+            status_code=500,
+            detail=f"Failed to store agent version in our database. Please try again later."
         )
     
     agent_object = Agent(
@@ -138,8 +138,8 @@ async def post_agent (
     result = db.store_agent(agent_object)
     if result == 0:
         raise HTTPException(
-            status_code=400,
-            detail=f"Failed to store agent in our database"
+            status_code=500,
+            detail=f"Failed to store agent version in our database. Please try again later."
         )
     
     agent_version_object = AgentVersion(
@@ -152,18 +152,14 @@ async def post_agent (
     result = db.store_agent_version(agent_version_object)
     if result == 0:
         raise HTTPException(
-            status_code=400,
-            detail=f"Failed to store agent version in our database"
+            status_code=500,
+            detail=f"Failed to store agent version in our database. Please try again later."
         )
     
     await server.notify_of_new_agent_version()
-    await server.get_validator_version()
 
     return {
         "status": "success",
-        "details": {
-            "agent_id": agent_id,
-        },
         "message": f"Successfully updated agent {agent_id} to version {agent_object.latest_version}" if existing_agent else f"Successfully created agent {agent_id}"
     }
 

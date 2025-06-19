@@ -20,6 +20,9 @@ class DatabaseManager:
         self.conn.autocommit = True
 
     def close(self):
+        """
+        Close the database connection.
+        """
         if self.conn:
             self.conn.close()
         
@@ -147,6 +150,7 @@ class DatabaseManager:
             """, (validator_hotkey,))
             row = cursor.fetchone()
             if row:
+                logger.info(f"Latest unevaluated agent version found for validator {validator_hotkey}")
                 return AgentVersionForValidator(
                     version_id=row[0],
                     agent_id=row[1], 
@@ -155,6 +159,8 @@ class DatabaseManager:
                     score=row[4],
                     miner_hotkey=row[5]
                 )
+            else:
+                logger.info(f"No unevaluated agent version found for validator {validator_hotkey}")
             return None
         
     

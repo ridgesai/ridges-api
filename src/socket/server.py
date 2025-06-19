@@ -49,6 +49,7 @@ class WebSocketServer:
                 response_json = json.loads(response)
 
                 if response_json["event"] == "validator-version":
+                    logger.info(f"Validator {websocket.remote_address} sent their validator version. Updating validator versions.")
                     self.validator_versions = update_validator_versions(response_json, self.validator_versions)
 
                 if response_json["event"] == "agent-version":
@@ -60,8 +61,8 @@ class WebSocketServer:
                         logger.warning(f"Failed to send next agent version from queue to validator {websocket.remote_address}")
 
                 if response_json["event"] == "upsert-evaluation-run":
-                    print(response_json["evaluation_run"])
-                    upsert_evaluation_run(response_json["evaluation_run"])
+                    logger.info(f"Validator {websocket.remote_address} sent an evaluation run. Upserting evaluation run.")
+                    upsert_evaluation_run(response_json["evaluation_run"]) 
 
                 if response_json["event"] == "request-agent-for-evaluation":
                     validator_hotkey = response_json.get("validator_hotkey")

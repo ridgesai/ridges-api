@@ -6,7 +6,10 @@ import json
 from datetime import datetime, timedelta
 import asyncio
 
+from src.utils.logging import get_logger
 from src.utils.config import MODEL_PRICE_PER_1M_TOKENS
+
+logger = get_logger(__name__)
 
 dotenv.load_dotenv()
 
@@ -19,15 +22,17 @@ class ChutesManager:
         self.start_cleanup_task()
 
     def start_cleanup_task(self):
-        """Start the periodic cleanup task to remove cost data that is older than 15 minutes"""
+        """Start the periodic cleanup task to remove cost data that is older than 15 minutes. This is run every 5 minutes."""
         async def cleanup_loop():
             while True:
+                logger.info("Started cleaning up old entries from Chutes")
                 await self.cleanup_old_entries()
+                logger.info("Finished cleaning up old entries from Chutes. Running again in 5 minutes.")
                 await asyncio.sleep(300)
         
         self.cleanup_task = asyncio.create_task(cleanup_loop())
 
-    async def cleanup_old_entries(self):
+    async def cleanup_old_entries(self) -> None:
         """Remove cost data that is older than 15 minutes"""
         current_time = datetime.now()
         keys_to_remove = []
@@ -38,6 +43,7 @@ class ChutesManager:
         
         for key in keys_to_remove:
             del self.costs_data[key]
+        logger.info(f"Removed {len(keys_to_remove)} old entries from Chutes")
 
     def embed(self, prompt: str) -> dict:
         headers = {
@@ -57,15 +63,17 @@ class ChutesManager:
 
         return response.json()
     
-    async def inference(self, challenge_id: str, miner_hotkey: str, text_input: str, code_input: str, return_text: bool, return_code: bool, model: str = "deepseek-ai/DeepSeek-V3-0324"):
+    async def inference(self, run_id: str, text_input: str, code_input: str, return_text: bool, return_code: bool, model: str = "deepseek-ai/DeepSeek-V3-0324"):
         if not model:
             model = "deepseek-ai/DeepSeek-V3-0324"
 
         if model not in self.pricing:
-            return f"Model {model} not supported"
+            logger.info(f"Agent version from run {run_id} requested an unsupported model: {model}.")
+            return f"Model {model} not supported. Please use one of the following models: {list(self.pricing.keys())}"
         
-        if self.costs_data.get(challenge_id + miner_hotkey, {}).get("spend", 0) >= 2:
-            return f"Miner {miner_hotkey} has reached the maximum cost for challenge {challenge_id}"
+        if self.costs_data.get(run_id, {}).get("spend", 0) >= 2:
+            logger.info(f"Agent version from run {run_id} has reached the maximum cost from their evaluation run.")
+            return f"Your agent version has reached the maximum cost for this evaluation run. Please do not request more inference from this agent version."
         
         headers = {
             "Authorization": "Bearer " + self.api_key,
@@ -129,16 +137,13 @@ class ChutesManager:
                             elif chunk_json['usage']['total_tokens']:
                                 total_tokens = chunk_json['usage']['total_tokens']
                                 total_cost = total_tokens * self.pricing[model] / 1000000
-                                key = challenge_id + miner_hotkey
+                                key = run_id
                                 self.costs_data[key] = {
                                     "spend": self.costs_data.get(key, {}).get("spend", 0) + total_cost,
                                     "started_at": self.costs_data.get(key, {}).get("started_at", datetime.now())
                                 }
-                                for key, value in self.costs_data.items():
-                                    print(f"{key}: {value}")
-
                         except Exception as e:
-                            print(f"Error parsing chunk: {e}")
+                            logger.warning(f"Error parsing chunk: {e}")
         
         response_text = "".join(response_chunks)
         

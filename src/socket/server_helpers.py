@@ -55,7 +55,7 @@ def get_agent_to_evaluate(validator_hotkey: str) -> AgentVersionForValidator:
     return agent
     
 def update_validator_versions(response_json: dict, validator_versions: dict) -> dict:
-    recent_commit_hashes = get_recent_commit_hashes(response_json["version_commit_hash"])
+    recent_commit_hashes = get_recent_commit_hashes()
     relative_version = recent_commit_hashes.index(response_json["version_commit_hash"]) if response_json["version_commit_hash"] in recent_commit_hashes else -1
     
     validator_versions[response_json["validator_hotkey"]] = {
