@@ -156,12 +156,12 @@ async def post_agent (
             detail=f"Failed to store agent version in our database. Please try again later."
         )
     
-    await server.notify_of_new_agent_version()
+    await server.create_new_evaluations(version_id)
 
     return {
         "status": "success",
         "message": f"Successfully updated agent {agent_id} to version {agent_object.latest_version}" if existing_agent else f"Successfully created agent {agent_id}"
-    }
+    } 
 
 router = APIRouter()
 

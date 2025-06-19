@@ -37,43 +37,45 @@ def get_recent_commit_hashes(history_length: int = 30) -> list:
         logger.error(f"Failed to get commits: {e}")
         return []
 
-def get_agent_to_evaluate(validator_hotkey: str) -> AgentVersionForValidator:
+def get_next_evaluation(validator_hotkey: str) -> Evaluation:
     """
-    Gets the latest agent in queue to evaluate for a validator. 
-    The agent it returns is the oldest agent unevaluated by the validator.
-
-    Args:
-        validator_hotkey (str): The hotkey of the validator requesting an agent to evaluate
-
-    Returns:
-        AgentVersion: The next agent version to be evaluated by this validator, or None if no agents are in queue
+    Get the next evaluation for a validator. Returns None if no evaluation is found.
     """
 
-    agent = db.get_latest_unevaluated_agent_version(validator_hotkey)
+    evaluation = db.get_next_evaluation(validator_hotkey)
 
-    if agent is None: 
-        raise Exception("No agent found to evaluate")
-    
-    return agent
-    
-def update_validator_versions(response_json: dict, validator_versions: dict) -> dict:
-    recent_commit_hashes = get_recent_commit_hashes()
-    relative_version = recent_commit_hashes.index(response_json["version_commit_hash"]) if response_json["version_commit_hash"] in recent_commit_hashes else -1
-    
-    validator_versions[response_json["validator_hotkey"]] = {
-        "relative_version": relative_version,
-        "version_commit_hash": response_json["version_commit_hash"]
-    }
+    return evaluation
 
-    return validator_versions
+def get_agent(version_id: str) -> AgentVersionForValidator:
+    """
+    Get the agent version for a given version id.
+    """
+
+    agent_version = db.get_agent_version(version_id)
+    agent = db.get_agent(agent_version.miner_hotkey)
+
+    agent_version = AgentVersionForValidator(
+        version_id=agent_version.version_id,
+        agent_id=agent_version.agent_id,
+        version_num=agent_version.version_num,
+        created_at=agent_version.created_at,
+        score=agent_version.score,
+        miner_hotkey=agent.miner_hotkey
+    )
+    return agent_version
 
 def upsert_evaluation_run(evaluation_run: dict):
+    """
+    Upsert an evaluation run into the database.
+    """
+    
     evaluation_run = EvaluationRun(
         run_id=evaluation_run["run_id"],
         evaluation_id=evaluation_run["evaluation_id"],
         version_id=evaluation_run["version_id"],
         swebench_instance_id=evaluation_run["swebench_instance_id"],
         response=evaluation_run["response"],
+        error=evaluation_run["error"],
         pass_to_fail_success=evaluation_run["pass_to_fail_success"],
         fail_to_pass_success=evaluation_run["fail_to_pass_success"],
         pass_to_pass_success=evaluation_run["pass_to_pass_success"],
@@ -85,6 +87,10 @@ def upsert_evaluation_run(evaluation_run: dict):
     db.store_evaluation_run(evaluation_run)
 
 def create_evaluation(version_id: str, validator_hotkey: str) -> str:
+    """
+    Create a new evaluation in the database. Returns the evaluation id.
+    """
+    
     evaluation_object = Evaluation(
         evaluation_id=str(uuid.uuid4()),
         version_id=version_id,
@@ -93,4 +99,25 @@ def create_evaluation(version_id: str, validator_hotkey: str) -> str:
         created_at=datetime.now()
     )
     db.store_evaluation(evaluation_object)
+
     return evaluation_object.evaluation_id
+
+def start_evaluation(evaluation_id: str):
+    """
+    Start an evaluation in the database.
+    """
+    
+    evaluation = db.get_evaluation(evaluation_id)
+    evaluation.status = "running"
+    evaluation.started_at = datetime.now()
+    db.store_evaluation(evaluation)
+
+def finish_evaluation(evaluation_id: str, errored: bool):
+    """
+    Finish an evaluation in the database.
+    """
+    
+    evaluation = db.get_evaluation(evaluation_id)
+    evaluation.status = "completed" if not errored else "error"
+    evaluation.finished_at = datetime.now()
+    db.store_evaluation(evaluation)

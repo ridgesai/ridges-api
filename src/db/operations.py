@@ -129,57 +129,68 @@ class DatabaseManager:
         try:
             with self.conn.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO evaluation_runs (run_id, version_id, validator_hotkey, swebench_instance_id, response, pass_to_fail_success, fail_to_pass_success, pass_to_pass_success, fail_to_fail_success, solved, started_at, finished_at)
+                    INSERT INTO evaluation_runs (run_id, version_id, validator_hotkey, swebench_instance_id, response, error, pass_to_fail_success, fail_to_pass_success, pass_to_pass_success, fail_to_fail_success, solved, started_at, finished_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (run_id) DO UPDATE SET
                         response = EXCLUDED.response,
+                        error = EXCLUDED.error,
                         pass_to_fail_success = EXCLUDED.pass_to_fail_success,
                         fail_to_pass_success = EXCLUDED.fail_to_pass_success,
                         pass_to_pass_success = EXCLUDED.pass_to_pass_success,
                         fail_to_fail_success = EXCLUDED.fail_to_fail_success,
                         solved = EXCLUDED.solved,
                         finished_at = EXCLUDED.finished_at
-                """, (evaluation_run.run_id, evaluation_run.version_id, evaluation_run.validator_hotkey, evaluation_run.swebench_instance_id, evaluation_run.response, evaluation_run.pass_to_fail_success, evaluation_run.fail_to_pass_success, evaluation_run.pass_to_pass_success, evaluation_run.fail_to_fail_success, evaluation_run.solved, evaluation_run.started_at, evaluation_run.finished_at))
+                """, (evaluation_run.run_id, evaluation_run.version_id, evaluation_run.validator_hotkey, evaluation_run.swebench_instance_id, evaluation_run.response, evaluation_run.error, evaluation_run.pass_to_fail_success, evaluation_run.fail_to_pass_success, evaluation_run.pass_to_pass_success, evaluation_run.fail_to_fail_success, evaluation_run.solved, evaluation_run.started_at, evaluation_run.finished_at))
                 logger.info(f"Evaluation run {evaluation_run.run_id} stored successfully")
                 return 1
         except Exception as e:
             logger.error(f"Error storing evaluation run {evaluation_run.run_id}: {str(e)}")
             return 0
-    
-    def get_latest_unevaluated_agent_version(self, validator_hotkey: str) -> AgentVersionForValidator:
+
+    def get_next_evaluation(self, validator_hotkey: str) -> Evaluation:
         """
-        Get the latest unevaluated agent version for a validator. Return None if not found.
+        Get the next evaluation for a validator. Return None if not found.
         """
         with self.conn.cursor() as cursor:
             cursor.execute("""
-                SELECT av.*, a.miner_hotkey
-                FROM agent_versions av
-                JOIN agents a ON av.agent_id = a.agent_id
-                WHERE av.version_num = (
-                    SELECT MAX(av2.version_num)
-                    FROM agent_versions av2
-                    WHERE av2.agent_id = av.agent_id
-                )
-                AND NOT EXISTS (
-                    SELECT 1 
-                    FROM evaluation_runs er 
-                    WHERE er.validator_hotkey = %s
-                    AND er.version_id = av.version_id
-                )
-                ORDER BY av.created_at ASC
-                LIMIT 1;
+                SELECT * FROM evaluations WHERE validator_hotkey = %s AND status = 'waiting' ORDER BY created_at ASC LIMIT 1;
             """, (validator_hotkey,))
             row = cursor.fetchone()
             if row:
-                logger.info(f"Latest unevaluated agent version found for validator {validator_hotkey}")
-                return AgentVersionForValidator(
-                    version_id=row[0],
-                    agent_id=row[1], 
-                    version_num=row[2],
-                    created_at=row[3],
-                    score=row[4],
-                    miner_hotkey=row[5]
+                logger.info(f"Next evaluation {row[0]} found for validator with hotkey {validator_hotkey}")
+                return Evaluation(
+                    evaluation_id=row[0],
+                    version_id=row[1],
+                    validator_hotkey=row[2],
+                    status=row[3],
+                    terminated_reason=row[4],
+                    created_at=row[5],
+                    started_at=row[6],
+                    finished_at=row[7]
                 )
-            else:
-                logger.info(f"No unevaluated agent version found for validator {validator_hotkey}")
+            logger.info(f"No pending evaluations found for validator with hotkey {validator_hotkey}")
+            return None
+        
+    def get_evaluation(self, evaluation_id: str) -> Evaluation:
+        """
+        Get an evaluation from the database. Return None if not found.
+        """
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM evaluations WHERE evaluation_id = %s
+            """, (evaluation_id,))
+            row = cursor.fetchone()
+            if row:
+                logger.info(f"Evaluation {row[0]} retrieved from the database")
+                return Evaluation(
+                    evaluation_id=row[0],
+                    version_id=row[1],
+                    validator_hotkey=row[2],
+                    status=row[3],
+                    terminated_reason=row[4],
+                    created_at=row[5],
+                    started_at=row[6],
+                    finished_at=row[7]
+                )
+            logger.info(f"Evaluation {evaluation_id} not found in the database")
             return None

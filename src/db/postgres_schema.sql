@@ -33,6 +33,7 @@ CREATE TABLE evaluation_runs (
     evaluation_id UUID NOT NULL REFERENCES evaluations(evaluation_id),
     swebench_instance_id TEXT NOT NULL,
     response TEXT,
+    error TEXT,
     pass_to_fail_success TEXT,
     fail_to_pass_success TEXT,
     pass_to_pass_success TEXT,
