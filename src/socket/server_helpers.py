@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 import httpx
 import uuid
 from datetime import datetime
@@ -37,7 +38,7 @@ def get_recent_commit_hashes(history_length: int = 30) -> list:
         logger.error(f"Failed to get commits: {e}")
         return []
 
-def get_next_evaluation(validator_hotkey: str) -> Evaluation:
+def get_next_evaluation(validator_hotkey: str) -> Optional[Evaluation]:
     """
     Get the next evaluation for a validator. Returns None if no evaluation is found.
     """

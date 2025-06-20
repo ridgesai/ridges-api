@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 import psycopg2
 from dotenv import load_dotenv
 from src.utils.models import Agent, AgentVersion, EvaluationRun, AgentVersionForValidator, Evaluation
@@ -114,7 +115,7 @@ class DatabaseManager:
             logger.error(f"Error storing evaluation run {evaluation_run.run_id}: {str(e)}")
             return 0
 
-    def get_next_evaluation(self, validator_hotkey: str) -> Evaluation:
+    def get_next_evaluation(self, validator_hotkey: str) -> Optional[Evaluation]:
         """
         Get the next evaluation for a validator. Return None if not found.
         """
