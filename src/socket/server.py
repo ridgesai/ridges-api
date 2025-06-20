@@ -89,6 +89,9 @@ class WebSocketServer:
     async def get_next_evaluation(self, validator_hotkey: str):
         try:
             evaluation = get_next_evaluation(validator_hotkey)
+            if evaluation is None:
+                return { "event": "evaluation" } # No evaluations available for this validator
+
             agent_version = get_agent_version_for_validator(evaluation.version_id)
             socket_message = {
                 "event": "evaluation",
